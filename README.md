@@ -37,6 +37,10 @@ pnpm dev:web
 
 There is no webhook to create by hand: on boot the API finds or creates this app's webhook and updates its URL.
 
+### A crowd to sell to
+
+With the live page and the seller console open, `node --env-file=.env scripts/demo-crowd.mjs <scene>` plays a few buyers chatting the way they do in a real live: `switch`, `last-one`, `deal`, `languages`, `close-out` (add `--reset` for a fresh shop).
+
 ### Background tasks
 
 Work that happens around a live rather than in the middle of it runs as [Render Workflows](https://render.com/docs/workflows) tasks (`apps/api/src/jobs/tasks.ts`):

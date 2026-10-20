@@ -182,6 +182,31 @@ const cases: Array<[string, InterpretContext, Expect]> = [
   ],
   ["Malay", ctx("nak saiz L warna sage satu"), { intent: "buy", sku: "A1-SAGE-L", language: "ms" }],
   ["Thai", ctx("เอาสีฟ้า ไซส์ S 1 ตัว"), { intent: "buy", sku: "A1-BLUE-S", language: "th" }],
+  [
+    "Thai, changes size",
+    ctx("เปลี่ยนเป็นไซส์ L ค่ะ ไม่เอาเพิ่มนะ", { openLines: [line("L1", "A1-BLUE-M")] }),
+    { intent: "change", sku: "A1-BLUE-L", targetLines: ["L1"], language: "th" },
+  ],
+  [
+    "Indonesian",
+    ctx("kak mau yang biru ukuran M satu ya"),
+    { intent: "buy", sku: "A1-BLUE-M", language: "id" },
+  ],
+  [
+    "Indonesian, cancels",
+    ctx("kak yang tadi batal aja ya, maaf", { openLines: [line("L1", "A1-SAGE-L")] }),
+    { intent: "cancel", targetLines: ["L1"], language: "id" },
+  ],
+  [
+    "Singlish",
+    ctx("boss sage one M can? take 1 lah"),
+    { intent: "buy", sku: "A1-SAGE-M", language: "en" },
+  ],
+  [
+    "Chinese, changes size",
+    ctx("换成 L 码，不要多一件", { openLines: [line("L1", "A1-BLUE-M")] }),
+    { intent: "change", sku: "A1-BLUE-L", targetLines: ["L1"], language: "zh" },
+  ],
 ];
 
 describe.skipIf(!process.env.ANTHROPIC_API_KEY)("understanding live chat", () => {
