@@ -1,0 +1,2 @@
+ALTER TABLE "attention" ADD COLUMN "line_id" uuid;--> statement-breakpoint
+ALTER TABLE "attention" ADD CONSTRAINT "attention_line_id_order_lines_id_fk" FOREIGN KEY ("line_id") REFERENCES "public"."order_lines"("id") ON DELETE no action ON UPDATE no action;

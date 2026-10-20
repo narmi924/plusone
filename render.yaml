@@ -1,0 +1,64 @@
+# PlusOne on Render: the web service (API, Socket.IO and the built web app),
+# a Render Workflows service for the background tasks, and Postgres.
+services:
+  - type: web
+    name: plusone
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: >-
+      npx --yes pnpm@9.15.9 install --frozen-lockfile &&
+      npx --yes pnpm@9.15.9 --filter @plusone/web build
+    startCommand: cd apps/api && node --import tsx src/index.ts
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: plusone-db, property: connectionString }
+      - key: WORKFLOW_SLUG
+        fromService: { name: plusone-jobs, type: workflow, property: slug }
+      - { key: PAYPAL_ENV, value: sandbox }
+      - { key: SELLER_PASSWORD, sync: false }
+      - { key: ANTHROPIC_API_KEY, sync: false }
+      - { key: PAYPAL_CLIENT_ID, sync: false }
+      - { key: PAYPAL_CLIENT_SECRET, sync: false }
+      - { key: LIVEKIT_URL, sync: false }
+      - { key: LIVEKIT_API_KEY, sync: false }
+      - { key: LIVEKIT_API_SECRET, sync: false }
+      - { key: DEEPGRAM_API_KEY, sync: false }
+      # Starts task runs on the workflow service below.
+      - { key: RENDER_API_KEY, sync: false }
+      # Read at build time and shipped in the page's JavaScript.
+      - { key: VITE_AG_STUDIO_LICENSE, sync: false }
+
+  # Close-out after a live (one invoice run per buyer, then the AI recap) and
+  # payment reminders. Each task run is its own process, started by the web
+  # service through the Render API.
+  - type: workflow
+    name: plusone-jobs
+    runtime: node
+    region: singapore
+    buildCommand: npx --yes pnpm@9.15.9 install --frozen-lockfile --filter "@plusone/api..."
+    startCommand: cd apps/api && node --import tsx src/worker.ts
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/shared/**
+        - package.json
+        - pnpm-lock.yaml
+        - .node-version
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: plusone-db, property: connectionString }
+      - { key: PAYPAL_ENV, value: sandbox }
+      - { key: PAYPAL_CLIENT_ID, sync: false }
+      - { key: PAYPAL_CLIENT_SECRET, sync: false }
+      - { key: ANTHROPIC_API_KEY, sync: false }
+
+databases:
+  - name: plusone-db
+    region: singapore
+    plan: basic-256mb
+    diskSizeGB: 1
+    postgresMajorVersion: "17"
+    databaseName: plusone
+    user: plusone

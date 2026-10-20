@@ -1,0 +1,30 @@
+{
+  "name": "plusone",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI sales assistant for live-stream sellers: understands messy buyer chat, keeps orders right, collects with PayPal.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "dev:api": "pnpm --filter @plusone/api dev",
+    "dev:web": "pnpm --filter @plusone/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "dev:public": "node scripts/dev-public.mjs",
+    "e2e:pay": "node --env-file=.env scripts/e2e-pay.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "playwright-core": "1.56.1",
+    "typescript": "5.9.3"
+  }
+}
