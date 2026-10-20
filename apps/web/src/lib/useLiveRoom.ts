@@ -157,7 +157,11 @@ export function useLiveRoom(opts: {
       socketRef.current = socket;
       resolve(socket);
       socket.on("connect", () => useLive.getState().setConnected(true));
-      socket.on("disconnect", () => useLive.getState().setConnected(false));
+      socket.on("disconnect", (reason) => {
+        useLive.getState().setConnected(false);
+        // Only a demo reset closes sockets from the server: start over on the fresh shop.
+        if (reason === "io server disconnect") window.location.reload();
+      });
       socket.on("chat:message", (m) => useLive.getState().addMessage(m));
       socket.on("chat:thinking", ({ messageId, done }) =>
         useLive.getState().setThinking(messageId, done),

@@ -88,6 +88,18 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       paypalClientId: env.PAYPAL_CLIENT_ID ?? "",
       paypalEnv: env.PAYPAL_ENV,
       livekitUrl: env.LIVEKIT_URL || null,
+      demo: env.DEMO_MODE
+        ? {
+            sellerPassword: env.SELLER_PASSWORD,
+            sandboxBuyer:
+              env.DEMO_SANDBOX_BUYER_EMAIL && env.DEMO_SANDBOX_BUYER_PASSWORD
+                ? {
+                    email: env.DEMO_SANDBOX_BUYER_EMAIL,
+                    password: env.DEMO_SANDBOX_BUYER_PASSWORD,
+                  }
+                : null,
+          }
+        : null,
     }),
   );
 

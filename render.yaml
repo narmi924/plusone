@@ -27,6 +27,10 @@ services:
       - { key: DEEPGRAM_API_KEY, sync: false }
       # Starts task runs on the workflow service below.
       - { key: RENDER_API_KEY, sync: false }
+      # Public demo: shows the seller password and a sandbox buyer, resets when idle.
+      - { key: DEMO_MODE, value: "true" }
+      - { key: DEMO_SANDBOX_BUYER_EMAIL, sync: false }
+      - { key: DEMO_SANDBOX_BUYER_PASSWORD, sync: false }
       # Read at build time and shipped in the page's JavaScript.
       - { key: VITE_AG_STUDIO_LICENSE, sync: false }
 

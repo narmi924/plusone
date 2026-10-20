@@ -30,6 +30,11 @@ export interface PublicConfig {
   paypalClientId: string;
   paypalEnv: "sandbox" | "live";
   livekitUrl: string | null;
+  /** Public demo: what a judge or visitor needs to try everything. */
+  demo: {
+    sellerPassword: string;
+    sandboxBuyer: { email: string; password: string } | null;
+  } | null;
 }
 
 export interface VariantDTO {

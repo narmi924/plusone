@@ -52,6 +52,7 @@ export function OrderBook({
   paypalReady,
   deals,
   ended = false,
+  sandboxBuyer = null,
 }: {
   product: ProductDTO | null;
   orders: OrderDTO[];
@@ -59,6 +60,8 @@ export function OrderBook({
   paypalReady: boolean;
   deals: string[];
   ended?: boolean;
+  /** Public demo: the PayPal sandbox login to pay with. */
+  sandboxBuyer?: { email: string; password: string } | null;
 }) {
   const open = orders.filter((o) => o.status === "reserved");
   const done = orders.filter((o) => o.status === "paid" || o.status === "shipped");
@@ -90,7 +93,13 @@ export function OrderBook({
       )}
       {buyerToken &&
         open.map((o) => (
-          <HeldOrder key={o.id} order={o} buyerToken={buyerToken} paypalReady={paypalReady} />
+          <HeldOrder
+            key={o.id}
+            order={o}
+            buyerToken={buyerToken}
+            paypalReady={paypalReady}
+            sandboxBuyer={sandboxBuyer}
+          />
         ))}
       {done.map((o) => (
         <PaidOrder key={o.id} order={o} />
@@ -139,10 +148,12 @@ function HeldOrder({
   order,
   buyerToken,
   paypalReady,
+  sandboxBuyer,
 }: {
   order: OrderDTO;
   buyerToken: string;
   paypalReady: boolean;
+  sandboxBuyer: { email: string; password: string } | null;
 }) {
   const now = useNow();
   const upsertOrder = useLive((s) => s.upsertOrder);
@@ -270,7 +281,39 @@ function HeldOrder({
       {status.kind === "error" && (
         <p className="mt-2 font-hand text-lg leading-snug text-pen">{status.text}</p>
       )}
+      {sandboxBuyer && <SandboxLogin {...sandboxBuyer} />}
     </section>
+  );
+}
+
+/** Public demo: a margin note with the PayPal sandbox buyer to log in as. */
+function SandboxLogin({ email, password }: { email: string; password: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (label: string, text: string) =>
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(label),
+      () => undefined,
+    );
+  const row = (label: string, text: string) => (
+    <div className="flex items-baseline gap-2">
+      <span className="w-20 shrink-0">{label}</span>
+      <button
+        type="button"
+        onClick={() => void copy(label, text)}
+        className="min-w-0 rounded bg-white px-1.5 text-left font-sans text-sm break-all text-black underline decoration-dotted underline-offset-2"
+        title="Copy"
+      >
+        {text}
+      </button>
+      {copied === label && <span className="font-sans text-xs text-quiet">copied</span>}
+    </div>
+  );
+  return (
+    <div className="mt-3 font-hand text-lg leading-snug text-pen">
+      <p>Just trying it? PayPal is in test mode, log in with:</p>
+      {row("email", email)}
+      {row("password", password)}
+    </div>
   );
 }
 

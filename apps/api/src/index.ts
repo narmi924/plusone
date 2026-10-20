@@ -23,6 +23,7 @@ import { createChatPipeline } from "./pipeline.js";
 import { createRealtime } from "./realtime.js";
 import { registerRoutes } from "./routes.js";
 import { toMessageDTO } from "./services/chat.js";
+import { startDemoKeeper } from "./services/demo.js";
 import { startHoldSweeper } from "./services/holds.js";
 import { createNotifier } from "./services/notify.js";
 import { REMIND_BEFORE_MS } from "./services/reminders.js";
@@ -119,6 +120,10 @@ const stopSweeper = startHoldSweeper({
   },
 });
 
+const stopDemoKeeper = env.DEMO_MODE
+  ? startDemoKeeper({ db, log: app.log, onReset: () => realtime.io.disconnectSockets() })
+  : () => undefined;
+
 let webhookId: string | null = env.PAYPAL_WEBHOOK_ID || null;
 await registerRoutes(app, {
   db,
@@ -147,15 +152,21 @@ if (env.ANTHROPIC_API_KEY) {
 const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
 if (existsSync(webDist)) {
   await app.register(fastifyStatic, { root: webDist, wildcard: false });
-  app.setNotFoundHandler((req, reply) =>
-    req.method === "GET" && !req.url.startsWith("/api/") && !req.url.startsWith("/socket.io")
-      ? reply.sendFile("index.html")
-      : reply.code(404).send({ error: "Not found" }),
-  );
+  // Page routes (/live/..., /seller) get the app; missing files and API paths get a 404.
+  app.setNotFoundHandler((req, reply) => {
+    const path = req.url.split("?")[0] ?? "";
+    const page =
+      req.method === "GET" &&
+      !path.startsWith("/api/") &&
+      !path.startsWith("/socket.io") &&
+      !/\.[a-z0-9]+$/i.test(path);
+    return page ? reply.sendFile("index.html") : reply.code(404).send({ error: "Not found" });
+  });
 }
 
 app.addHook("onClose", async () => {
   stopSweeper();
+  stopDemoKeeper();
   await stopPushes();
   realtime.io.close();
   await pool.end();

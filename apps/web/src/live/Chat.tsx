@@ -114,10 +114,62 @@ function Reading({ overlay }: { overlay: boolean }) {
 }
 
 /** The bar at the bottom of the stage: type anything, or tap the big +1. */
-export function ChatInput({ onSend }: { onSend: (body: string) => Promise<unknown> }) {
+/** Things to try, the way buyers actually type them. */
+const TRY_SAYING = ["+1 sage M", "the one before, size L", "change it to blue", "cancel that"];
+
+/** The shop's pinned comment: how ordering works here, with lines to try. */
+export function PinnedHowTo({ shop, onTry }: { shop: string; onTry?: (text: string) => void }) {
+  return (
+    <div className="w-full max-w-136 rounded-xl bg-black/55 px-3.5 py-2.5 backdrop-blur-sm">
+      <p className="flex items-center gap-1.5 text-xs text-white/70">
+        <svg viewBox="0 0 16 16" className="h-3 w-3 fill-current" aria-hidden="true">
+          <path d="M10.5 1.5 14.5 5.5 12 6.5 9.5 9 10 12.5 8.5 14 5.75 11.25 2 15 1 14 4.75 10.25 2 7.5 3.5 6 7 6.5 9.5 4z" />
+        </svg>
+        Pinned by {shop}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold">
+        Type +1 for what's on screen, or say it your way:
+      </p>
+      <div className="mt-1.5 flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        {TRY_SAYING.map((t) =>
+          onTry ? (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onTry(t)}
+              className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[13px] hover:bg-white/25"
+            >
+              "{t}"
+            </button>
+          ) : (
+            <span key={t} className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[13px]">
+              "{t}"
+            </span>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ChatInput({
+  onSend,
+  draft,
+}: {
+  onSend: (body: string) => Promise<unknown>;
+  /** Text to put in the box (from a tapped suggestion); `n` makes repeats count. */
+  draft?: { text: string; n: number } | null;
+}) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!draft) return;
+    setBody(draft.text);
+    inputRef.current?.focus();
+  }, [draft]);
 
   async function send(text: string) {
     if (!text || sending) return;
@@ -143,6 +195,7 @@ export function ChatInput({ onSend }: { onSend: (body: string) => Promise<unknow
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-white/95 py-1.5 pr-1.5 pl-4 text-black">
           <input
+            ref={inputRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Say +1, ask about sizes, anything"

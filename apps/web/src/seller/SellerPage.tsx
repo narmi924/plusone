@@ -566,6 +566,14 @@ function ProductList({
 function SellerLogin({ onToken }: { onToken: (t: string) => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [demoPassword, setDemoPassword] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.config().then(
+      (c) => setDemoPassword(c.demo?.sellerPassword ?? null),
+      () => undefined,
+    );
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -593,6 +601,18 @@ function SellerLogin({ onToken }: { onToken: (t: string) => void }) {
           Open console
         </button>
         {error && <p className="font-hand text-lg text-pen">{error}</p>}
+        {demoPassword && (
+          <p className="font-hand text-lg leading-snug text-pen">
+            Trying the demo? The password is{" "}
+            <button
+              type="button"
+              onClick={() => setPassword(demoPassword)}
+              className="rounded bg-white px-1.5 font-sans text-sm text-black underline decoration-dotted underline-offset-2"
+            >
+              {demoPassword}
+            </button>
+          </p>
+        )}
       </form>
     </div>
   );

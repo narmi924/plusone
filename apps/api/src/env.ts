@@ -17,6 +17,13 @@ const schema = z.object({
   LIVEKIT_API_KEY: z.string().optional().or(z.literal("")),
   LIVEKIT_API_SECRET: z.string().optional().or(z.literal("")),
   DEEPGRAM_API_KEY: z.string().optional().or(z.literal("")),
+  /** Public demo: shows the seller password and a PayPal sandbox buyer, resets when idle. */
+  DEMO_MODE: z
+    .enum(["true", "false", ""])
+    .default("")
+    .transform((v) => v === "true"),
+  DEMO_SANDBOX_BUYER_EMAIL: z.string().optional().or(z.literal("")),
+  DEMO_SANDBOX_BUYER_PASSWORD: z.string().optional().or(z.literal("")),
   /** Both set: background tasks run on Render Workflows. Otherwise in-process. */
   RENDER_API_KEY: z.string().optional().or(z.literal("")),
   WORKFLOW_SLUG: z.string().optional().or(z.literal("")),

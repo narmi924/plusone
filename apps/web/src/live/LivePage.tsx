@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { BUYER_TOKEN_KEY, readStored, writeStored } from "../lib/storage";
 import { useLive, useLiveRoom } from "../lib/useLiveRoom";
 import { TrackAudio, TrackVideo, useWatchLive } from "../lib/video";
-import { ChatFeed, ChatInput } from "./Chat";
+import { ChatFeed, ChatInput, PinnedHowTo } from "./Chat";
 import { MyOrderBar, OrderBook } from "./OrderSlip";
 import { Stage } from "./Stage";
 
@@ -31,6 +31,7 @@ export function LivePage() {
   const [buyer, setBuyer] = useState<BuyerDTO | null>(null);
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [draft, setDraft] = useState<{ text: string; n: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export function LivePage() {
       paypalReady={paypalReady}
       deals={session.deals}
       ended={session.status === "ended"}
+      sandboxBuyer={config?.demo?.sandboxBuyer ?? null}
     />
   );
 
@@ -122,6 +124,14 @@ export function LivePage() {
           </div>
         }
       >
+        {session.status !== "ended" && (
+          <PinnedHowTo
+            shop={session.seller.name}
+            {...(activeToken
+              ? { onTry: (text: string) => setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 })) }
+              : {})}
+          />
+        )}
         {/* newest at the bottom; older lines fade out at the top */}
         <div className="flex max-h-[30vh] w-full sm:max-h-[42vh] max-w-136 flex-col justify-end overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_20%)]">
           <ChatFeed
@@ -138,7 +148,7 @@ export function LivePage() {
             This live has ended. Thanks for watching!
           </p>
         ) : activeToken ? (
-          <ChatInput onSend={send} />
+          <ChatInput onSend={send} draft={draft} />
         ) : (
           <JoinBar
             onJoined={(t, b) => {
