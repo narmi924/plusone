@@ -56,6 +56,16 @@ export function createRealtime(
   // Whether the host's camera is on, per session. Viewers only join the video
   // room while it is, so idle visitors don't use up video minutes.
   const videoOn = new Map<string, boolean>();
+  // A buyer typing faster than anyone could read gets asked to slow down, so a
+  // stuck key or a script can't run up the AI bill on the public demo.
+  const recentSends = new Map<string, number[]>();
+  const tooFast = (buyerId: string) => {
+    const now = Date.now();
+    const sent = (recentSends.get(buyerId) ?? []).filter((t) => t > now - 30_000);
+    sent.push(now);
+    recentSends.set(buyerId, sent);
+    return sent.length > 8;
+  };
 
   io.use(async (socket, next) => {
     try {
@@ -98,6 +108,7 @@ export function createRealtime(
       const body = typeof payload?.body === "string" ? payload.body.trim().slice(0, 500) : "";
       if (!buyer) return ack({ ok: false, error: "Join the live first" });
       if (!body) return ack({ ok: false, error: "Empty message" });
+      if (tooFast(buyer.id)) return ack({ ok: false, error: "Slow down a little, then try again" });
       if (!chatHandler) return ack({ ok: false, error: "Not ready" });
       try {
         ack({ ok: true, data: await chatHandler({ sessionId, buyer, body }) });
