@@ -30,6 +30,7 @@ import {
   setShowcase,
 } from "./services/catalog.js";
 import { recentMessages } from "./services/chat.js";
+import type { SampleCrowd } from "./services/crowd.js";
 import type { Notifier } from "./services/notify.js";
 import { listOrderDTOs } from "./services/orders.js";
 import { sendPayReminder } from "./services/reminders.js";
@@ -47,6 +48,8 @@ interface Deps {
   hostEars: HostEars;
   notify: Notifier;
   jobs: Jobs;
+  /** Public demo only: a busy minute of buyers, played on request. */
+  crowd: SampleCrowd | null;
   webhookId: () => string | null;
 }
 
@@ -368,6 +371,15 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
     } catch (err) {
       return sendPaymentError(reply, err);
     }
+  });
+
+  app.post<{ Params: { id: string } }>("/api/seller/sessions/:id/crowd", async (req, reply) => {
+    if (!requireSeller(req, reply)) return;
+    if (!deps.crowd) return reply.code(404).send({ error: "Only on the public demo" });
+    if (!deps.crowd.start(req.params.id)) {
+      return reply.code(409).send({ error: "The crowd is already chatting" });
+    }
+    return { started: true };
   });
 
   app.post("/api/seller/demo/reset", async (req, reply) => {

@@ -144,6 +144,12 @@ export const api = {
     request<{ recap: RecapDTO | null }>(`/api/seller/sessions/${sessionId}/recap`, {
       sellerToken,
     }),
+  playCrowd: (sessionId: string, sellerToken: string) =>
+    request<{ started: true }>(`/api/seller/sessions/${sessionId}/crowd`, {
+      method: "POST",
+      body: {},
+      sellerToken,
+    }),
   resetDemo: (sellerToken: string) =>
     request<{ sessionId: string }>("/api/seller/demo/reset", {
       method: "POST",

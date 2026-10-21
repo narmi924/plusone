@@ -69,6 +69,8 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
   const waitlistVersion = useLive((s) => s.waitlistVersion);
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState<WaitingDTO[]>([]);
+  const [demo, setDemo] = useState(false);
+  const [crowd, setCrowd] = useState<"idle" | "playing">("idle");
   const camera = useHostCamera(session?.id ?? null, token);
   const speech = useHostSpeech({ hostListen, hostAudio }, camera.mic);
 
@@ -76,6 +78,13 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
   useEffect(() => {
     if (session?.id) api.waitlist(session.id, token).then(setWaiting, () => undefined);
   }, [session?.id, token, waitlistVersion, orders]);
+
+  useEffect(() => {
+    api.config().then(
+      (c) => setDemo(Boolean(c.demo)),
+      () => undefined,
+    );
+  }, []);
 
   // Number keys put products on screen without reaching for the mouse mid-live.
   const shortcutRef = useRef<(key: string) => void>(() => undefined);
@@ -135,6 +144,17 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
     }
   }
 
+  async function playCrowd() {
+    if (!session) return;
+    setCrowd("playing");
+    try {
+      await api.playCrowd(session.id, token);
+    } catch {
+      // Already playing, or not the demo: nothing to undo.
+    }
+    setTimeout(() => setCrowd("idle"), 40_000);
+  }
+
   async function reset() {
     if (!window.confirm("Clear all orders and chat and restock the demo?")) return;
     setBusy(true);
@@ -163,6 +183,17 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
             className="rounded-full border-2 border-black px-3.5 py-1.5 text-sm font-bold disabled:opacity-50"
           >
             End live
+          </button>
+        )}
+        {demo && session.status !== "ended" && (
+          <button
+            type="button"
+            disabled={crowd === "playing"}
+            onClick={() => void playCrowd()}
+            className="rounded-full border-2 border-black bg-sticker px-3.5 py-1.5 text-sm font-bold disabled:opacity-60"
+            title="Ten buyers talk the way they do in a real live; PlusOne handles them"
+          >
+            {crowd === "playing" ? "Buyers are chatting…" : "Play a busy minute"}
           </button>
         )}
         <button

@@ -26,6 +26,7 @@ import { createChatPipeline } from "./pipeline.js";
 import { createRealtime } from "./realtime.js";
 import { registerRoutes } from "./routes.js";
 import { toMessageDTO } from "./services/chat.js";
+import { createSampleCrowd } from "./services/crowd.js";
 import { startDemoHost, startDemoKeeper } from "./services/demo.js";
 import { startHoldSweeper } from "./services/holds.js";
 import { createNotifier } from "./services/notify.js";
@@ -137,6 +138,14 @@ const pipeline = createChatPipeline({
   hostSaid: (sessionId) => hostEars.recent(sessionId),
 });
 realtime.onChat(pipeline.receive);
+const crowd = env.DEMO_MODE
+  ? createSampleCrowd({
+      db,
+      receive: pipeline.receive,
+      onShowcase: realtime.showcase,
+      log: app.log,
+    })
+  : null;
 const stopSweeper = startHoldSweeper({
   db,
   notify,
@@ -165,6 +174,7 @@ await registerRoutes(app, {
   hostEars,
   notify,
   jobs,
+  crowd,
   webhookId: () => webhookId,
 });
 

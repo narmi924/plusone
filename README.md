@@ -95,7 +95,7 @@ scripts         Dev tunnel, end-to-end PayPal run, a crowd of demo buyers
 
 **Live demo: <https://plusone-sjgp.onrender.com>** (buyers at `/live/lumicloset`, the seller console at `/seller`).
 
-The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's order shows a PayPal sandbox buyer to log in with. No real money moves. With no host on camera, the live moves on to the next product every 90 seconds, so you can try "the dress just now, blue S"; the pinned comment always suggests lines for what's on screen. The shop resets itself after half an hour of quiet.
+The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's order shows a PayPal sandbox buyer to log in with. No real money moves. With no host on camera, the live moves on to the next product every 90 seconds, so you can try "the dress just now, blue S"; the pinned comment always suggests lines for what's on screen. Alone in the shop? In the seller console, **Play a busy minute** sends ten buyers through the same chat pipeline real buyers use: mixed languages, a change of size, a cancellation, a question only the seller can answer, a race for the last one. The shop resets itself after half an hour of quiet.
 
 ## Run locally
 
