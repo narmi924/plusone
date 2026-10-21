@@ -39,7 +39,8 @@ Write a headline (the night in numbers, short: "23 pieces, $1,042 in, 3 still ow
 - what sold out and how many people were left waiting: restock or bring it back
 - what buyers kept asking for that wasn't there (a size, a colour, a product)
 - anything still waiting on the seller (refund requests, questions)
-Use the buyers' names and the product names. Use the money exactly as given. Don't invent facts, don't praise, no emojis.`;
+Use the buyers' names and the product names; refer to buyers by name, never guess "he" or "she". Use the money exactly as given. Don't invent facts, don't praise, no emojis.
+PlusOne already releases unpaid items when an invoice comes due, cancels that invoice and reminds buyers, so don't tell the seller to do those things. Options that never had stock tonight aren't news.`;
 
 const label = (l: OrderDTO["lines"][number]) =>
   [l.productName, [l.color, l.size].filter(Boolean).join(" ")].filter(Boolean).join(", ");

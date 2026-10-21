@@ -3,16 +3,18 @@ import { fileURLToPath } from "node:url";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import type { OrderDTO } from "@plusone/shared";
+import { eq } from "drizzle-orm";
 import Fastify from "fastify";
 import { createHostListener } from "./ai/hostSpeech.js";
 import { createInterpreter } from "./ai/interpret.js";
 import { createDb, runMigrations } from "./db/client.js";
+import { liveSessions, orders } from "./db/schema.js";
 import { loadEnv } from "./env.js";
 import { createHostEars } from "./hostEars.js";
 import { buildJobDeps } from "./jobs/deps.js";
 import { listenForPushes } from "./jobs/relay.js";
 import { createJobs } from "./jobs/runner.js";
-import { provideJobDeps, remindToPay } from "./jobs/tasks.js";
+import { provideJobDeps, remindToPay, writeRecap } from "./jobs/tasks.js";
 import { isSellerToken } from "./lib/auth.js";
 import { createLiveKit } from "./livekit.js";
 import { createPayPal } from "./paypal/client.js";
@@ -84,7 +86,25 @@ const notify = createNotifier({ db, realtime, onOrder: remindLater });
 const paypal = createPayPal(env);
 const payments = paypal ? createPayments({ db, paypal, notify, log: app.log }) : null;
 const invoicing =
-  paypal && payments ? createInvoicing({ db, paypal, payments, notify, log: app.log }) : null;
+  paypal && payments
+    ? createInvoicing({
+        db,
+        paypal,
+        payments,
+        notify,
+        log: app.log,
+        // A buyer paid their invoice after the live: rewrite the recap so it doesn't say they owe.
+        onPaid: async (orderId) => {
+          const [row] = await db
+            .select({ sessionId: orders.sessionId, status: liveSessions.status })
+            .from(orders)
+            .innerJoin(liveSessions, eq(liveSessions.id, orders.sessionId))
+            .where(eq(orders.id, orderId));
+          if (row?.status !== "ended") return;
+          await jobs.start(writeRecap, [row.sessionId], `recap-${row.sessionId}-${orderId}`);
+        },
+      })
+    : null;
 const hostEars = createHostEars({
   db,
   realtime,

@@ -37,6 +37,8 @@ export function createInvoicing(deps: {
   payments: Payments;
   notify: Notifier;
   log: FastifyBaseLogger;
+  /** An invoice was paid (e.g. bring the after-live recap up to date). */
+  onPaid?: (orderId: string) => Promise<void>;
 }) {
   const { db, paypal, notify, log } = deps;
 
@@ -218,6 +220,7 @@ export function createInvoicing(deps: {
       });
       await db.update(invoices).set({ status: "paid" }).where(eq(invoices.id, row.id));
       await notify.orders([row.orderId]);
+      await deps.onPaid?.(row.orderId);
     } else if (event.event_type === "INVOICING.INVOICE.CANCELLED" && row.status === "sent") {
       await db.update(invoices).set({ status: "cancelled" }).where(eq(invoices.id, row.id));
     }
