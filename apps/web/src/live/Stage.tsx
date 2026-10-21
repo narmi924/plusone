@@ -1,29 +1,11 @@
 import { formatMoney, type ProductDTO } from "@plusone/shared";
 import type { ReactNode } from "react";
+import type { Claim } from "../lib/claims";
+import { swatchFor } from "../lib/swatch";
 
-// The live room: the host's video fills a black stage, the price sits on it as
-// a yellow promo sticker with red numerals, and every "+1" that lands pops a
-// small sticker up the side. Chat and the input bar float over the bottom.
-
-const SWATCH: Record<string, string> = {
-  Blue: "#3d6fd6",
-  Sage: "#9bb59a",
-  White: "#f3f1ea",
-  Pink: "#f2a7bd",
-  Black: "#1b1b1f",
-  Beige: "#d8c3a2",
-  Navy: "#23305e",
-  Maroon: "#7a2333",
-  Cream: "#efe5cf",
-  Oat: "#d9cbb0",
-  Grey: "#9a9aa3",
-  Floral: "#e58fa3",
-  Paisley: "#b0653c",
-};
-
-export function swatchFor(color: string | null) {
-  return (color && SWATCH[color]) ?? "#9aa5c4";
-}
+// The live room: the host's video fills a black stage and the price hangs on
+// it as a shelf label. Every "+1" that lands pops a small tag up the side.
+// Chat and the input bar float over the bottom.
 
 export function priceLabel(cents: number, currency: string) {
   return formatMoney(cents, currency).replace(".00", "");
@@ -33,7 +15,7 @@ export function Stage({
   product,
   currency,
   deals,
-  plusOnes,
+  claims,
   video,
   header,
   ended = false,
@@ -43,7 +25,7 @@ export function Stage({
   currency: string;
   deals: string[];
   /** Recent "+1 Aisha, Blue M" moments, newest first. */
-  plusOnes: string[];
+  claims: Claim[];
   /** The host's camera; without it the stage shows the product in type. */
   video: ReactNode;
   header: ReactNode;
@@ -60,50 +42,68 @@ export function Stage({
         <CameraOff product={product} ended={ended} />
       )}
       {/* keeps text readable over any picture */}
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_top,rgb(0_0_0/0.8)_0%,rgb(0_0_0/0.35)_40%,transparent_62%),linear-gradient(to_bottom,rgb(0_0_0/0.45)_0%,transparent_16%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_top,rgb(0_0_0/0.8)_0%,rgb(0_0_0/0.3)_40%,transparent_62%),linear-gradient(to_bottom,rgb(0_0_0/0.55)_0%,transparent_20%)]" />
 
       <div className="absolute inset-x-0 top-0 p-4 sm:p-6">{header}</div>
 
       {product && (
         <div className="absolute top-20 right-4 flex flex-col items-end gap-3 sm:top-24 sm:right-10">
-          <div
-            className="-rotate-[5deg] rounded-[10px] bg-sticker px-4 pt-2.5 pb-2 text-center text-pen shadow-[0_2px_0_rgb(0_0_0/0.25),0_14px_30px_rgb(0_0_0/0.35)] sm:px-[18px] sm:pt-3"
-            role="img"
-            aria-label={`Price ${priceLabel(product.priceCents, currency)}`}
-          >
-            <div className="text-xs font-bold text-black">Tonight</div>
-            <div className="price-type text-[46px] leading-[0.9] sm:text-[64px]">
-              {priceLabel(product.priceCents, currency)}
-            </div>
-            <div className="mt-1 text-[13px] font-extrabold text-black">{product.code}</div>
-          </div>
-          {plusOnes.length > 0 && (
-            <ol className="mt-2 flex flex-col items-end gap-2" aria-label="Just ordered">
-              {plusOnes.slice(0, 3).map((p, i) => (
-                <li
-                  key={p}
-                  className="animate-[rise_300ms_ease-out] rounded-md bg-sticker px-2.5 py-1.5 text-sm font-extrabold text-black"
-                  style={{ opacity: 1 - i * 0.28, rotate: `${i % 2 ? 1.5 : -2}deg` }}
-                >
-                  <span className="mr-1.5 text-pen">+1</span>
-                  {p}
-                </li>
-              ))}
-            </ol>
-          )}
+          <PriceTag product={product} currency={currency} />
           {deals.map((d) => (
             <div
               key={d}
-              className="max-w-56 rotate-[2deg] rounded-md bg-sticker px-2.5 py-1.5 text-right text-[13px] leading-tight font-extrabold text-black shadow-[0_8px_20px_rgb(0_0_0/0.3)]"
+              className="max-w-56 rounded-[10px] border-2 border-dashed border-black bg-label px-2.5 py-1.5 text-right text-[13px] leading-tight font-bold text-black"
             >
               {d}
             </div>
           ))}
+          {claims.length > 0 && (
+            <ol className="mt-1 flex flex-col items-end gap-1.5" aria-label="Just ordered">
+              {claims.slice(0, 3).map((c, i) => (
+                <li
+                  key={c.id}
+                  className="animate-[rise_300ms_ease-out] rounded-full bg-label px-3 py-1.5 text-[13px] font-bold text-black shadow-[0_4px_12px_rgb(0_0_0/0.25)]"
+                  style={{ opacity: 1 - i * 0.22 }}
+                >
+                  <span className="mr-1 text-pen">+1</span>
+                  {c.who}, {c.what}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
 
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-4 sm:p-6">{children}</div>
     </section>
+  );
+}
+
+/** The price as a shelf label: product on a black band, the number big, stock below. */
+function PriceTag({ product, currency }: { product: ProductDTO; currency: string }) {
+  const left = product.variants.reduce((n, v) => n + v.available, 0);
+  const colors = [
+    ...new Set(product.variants.map((v) => v.color).filter((c): c is string => Boolean(c))),
+  ];
+  const price = priceLabel(product.priceCents, currency);
+  return (
+    <div
+      className="w-40 -rotate-2 overflow-hidden rounded-[10px] border-2 border-black bg-label text-black shadow-[0_14px_30px_rgb(0_0_0/0.3)] sm:w-52"
+      role="img"
+      aria-label={`${product.name}, ${price}, ${left} left`}
+    >
+      <div className="flex justify-between gap-2 bg-black px-2.5 py-1.5 text-[11px] font-bold text-white sm:text-[13px]">
+        <span>{product.code}</span>
+        <span className="truncate">{product.name}</span>
+      </div>
+      <div className="sort px-3 pt-2 pb-1 text-[56px] sm:text-[84px]">
+        <span className="align-top text-[0.45em]">{price.replace(/[\d.,]/g, "")}</span>
+        {price.replace(/[^\d.,]/g, "")}
+      </div>
+      <div className="border-t-[1.5px] border-black bg-sticker px-3 py-1.5 text-[11px] font-bold sm:text-[13px]">
+        {left > 0 ? `${left} left${colors.length ? ` in ${colors.join(", ")}` : ""}` : "Sold out"}
+      </div>
+    </div>
   );
 }
 
@@ -120,7 +120,7 @@ function CameraOff({ product, ended }: { product: ProductDTO | null; ended: bool
     ...new Set(product.variants.map((v) => v.color).filter((c): c is string => Boolean(c))),
   ];
   return (
-    <div className="absolute inset-x-0 top-0 -z-10 px-4 pt-24 pr-44 sm:px-12 sm:pt-32 sm:pr-72">
+    <div className="absolute inset-x-0 top-0 -z-10 px-4 pt-24 pr-48 sm:px-12 sm:pt-32 sm:pr-80">
       <p className="text-sm text-white/60">
         {ended
           ? "The live has ended. Last on screen:"
@@ -134,7 +134,7 @@ function CameraOff({ product, ended }: { product: ProductDTO | null; ended: bool
           {colors.map((c) => (
             <span
               key={c}
-              className="h-10 w-10 rounded-full ring-2 ring-white/30"
+              className="h-10 w-10 rounded-[10px] ring-2 ring-white/30"
               style={{ background: swatchFor(c) }}
             />
           ))}

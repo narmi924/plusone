@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 // Two ways to show the same chat. Over the video for buyers, the way live apps
 // do it: white names and lines, PlusOne's private replies as white bubbles.
-// As a plain column for the seller, with PlusOne's replies in blue ink.
+// As a plain column for the seller, with PlusOne's replies in soft bubbles.
 
 export function ChatFeed({
   messages,
@@ -37,7 +37,7 @@ export function ChatFeed({
         if (m.authorKind === "assistant") {
           if (overlay) {
             return (
-              <li key={m.id} className="max-w-136 rounded-xl bg-paper px-3 py-2 text-black">
+              <li key={m.id} className="max-w-136 rounded-2xl bg-label px-3 py-2 text-black">
                 <div className="text-xs text-quiet">PlusOne, only you see this</div>
                 <p className="text-[15px] leading-snug">{m.body}</p>
                 {m.options && m.options.length > 0 && (
@@ -48,7 +48,7 @@ export function ChatFeed({
                         type="button"
                         disabled={!onOption}
                         onClick={() => onOption?.(o.say)}
-                        className="rounded-full bg-sticker px-3 py-1.5 text-[13px] font-bold enabled:active:scale-95 disabled:opacity-60"
+                        className="rounded-full border-2 border-black bg-sticker px-3 py-1.5 text-[13px] font-bold enabled:active:scale-95 disabled:opacity-60"
                       >
                         {o.label}
                       </button>
@@ -60,8 +60,8 @@ export function ChatFeed({
           }
           const to = m.buyerId ? names.get(m.buyerId) : null;
           return (
-            <li key={m.id} className="border-l-[3px] border-ink py-0.5 pl-2.5 text-ink">
-              <div className="text-xs text-quiet">{to ? `to ${to}` : "PlusOne"}</div>
+            <li key={m.id} className="rounded-xl bg-paper px-3 py-2">
+              <div className="text-xs text-quiet">{to ? `PlusOne to ${to}` : "PlusOne"}</div>
               <p className="leading-snug">{m.body}</p>
             </li>
           );
@@ -69,7 +69,14 @@ export function ChatFeed({
 
         if (m.authorKind === "system") {
           return (
-            <li key={m.id} className={overlay ? "over-video font-bold text-sticker" : "font-bold"}>
+            <li
+              key={m.id}
+              className={
+                overlay
+                  ? "over-video font-bold text-sticker"
+                  : "self-start rounded-md bg-pale px-2 py-0.5 font-bold"
+              }
+            >
               {!overlay && <span className="mr-1 text-pen">+1</span>}
               {m.body}
             </li>
@@ -100,7 +107,7 @@ export function ChatFeed({
 function Reading({ overlay }: { overlay: boolean }) {
   return (
     <span
-      className={`ml-2 inline-flex items-center gap-1 align-middle text-xs ${overlay ? "text-sticker" : "text-ink"}`}
+      className={`ml-2 inline-flex items-center gap-1 align-middle text-xs ${overlay ? "text-sticker" : "text-quiet"}`}
       role="status"
     >
       <span className="inline-flex gap-0.5">
@@ -216,7 +223,7 @@ export function ChatInput({
           onClick={() => void send("+1")}
           disabled={sending}
           aria-label="Say +1"
-          className="price-type h-14 w-14 shrink-0 rounded-full bg-sticker text-xl text-pen shadow-[0_6px_18px_rgb(0_0_0/0.35)] active:scale-95 disabled:opacity-60"
+          className="h-14 w-14 shrink-0 rounded-full border-2 border-black bg-sticker text-[22px] font-black text-black [font-stretch:75%] shadow-[0_6px_18px_rgb(0_0_0/0.35)] active:scale-95 disabled:opacity-60"
         >
           +1
         </button>

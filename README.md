@@ -6,7 +6,7 @@ Small sellers sell clothes, snacks and handmade things on live video. Their buye
 
 PlusOne sits in the seller's own live page. It follows what is on screen and what each buyer said before, keeps one correct order per buyer, asks only when it really can't tell, and collects with PayPal. The host just sells.
 
-![The buyer's live room: chat over the video, a promo-sticker price, and the buyer's own order slip with the PayPal button](docs/images/buyer-live.jpg)
+![The buyer's live room: chat over the video, the price on a shelf label, and the buyer's order as a shipping label with the PayPal button](docs/images/buyer-live.jpg)
 
 ## How it's different
 
@@ -16,19 +16,19 @@ Comment-selling tools already exist. CommentSold, for example, turns comments in
 
 **Buyers** (`/live/lumicloset`)
 
-- The live video with the chat over it, a pinned "how to order" with lines to try, and the price on a sticker.
-- Their own order slip: what's held for them and for how long, deals applied, postage, and a PayPal button.
+- The live video with the chat over it, a pinned "how to order" with lines to try, and the price on a shelf label.
+- Their order as the shipping label it will become: what's held for them with a colour swatch per item, deals, postage, and a yellow hold bar that drains until they pay with PayPal. Paid orders get a barcode; shipped ones show the carrier and tracking number.
 - Private replies from PlusOne in their own language: "Blue M is yours, held for 15 min", "sold out, you're next in line", "freed up, it's yours now".
 
 **The seller** (`/seller`)
 
-- Tonight's order book, written as orders happen: held items highlighted, PAID stamps, cancellations struck through, people waiting in line.
-- Red-pen notes for the few things only the seller can decide, such as a refund request, with a one-tap refund through PayPal.
-- Sticky-note cards from what the host says ("dress and blouse together, five dollars off"); one tap applies them.
+- Every order as a label on the packing table, sorted into three lanes: waiting to pay (with its hold draining and a Remind button), paid and ready to pack, sent. People waiting in line, and the latest +1s scrolling across the top.
+- The few things only the seller can decide, on red packing tape across the top, such as a refund request with a one-tap refund through PayPal.
+- Cards from what the host says ("dress and blouse together, five dollars off"); one tap applies them, and buyers holding the dress are offered the blouse.
 - Ship with a tracking number; End live sends the PayPal invoices and writes the night's recap.
 - A report (AG Studio) with an AI assistant that answers "why is blue M sold out?" and can remind everyone who still owes.
 
-![The seller's order book: a deal card from the host's speech, a question only the seller can answer, held and paid orders](docs/images/seller-book.jpg)
+![The seller's packing table: a question only the seller can answer, a deal card from the host's speech, and orders as labels in three lanes](docs/images/seller-book.jpg)
 
 ## PayPal
 
@@ -53,7 +53,7 @@ Claude (Opus 5.5) does the understanding; code does the money.
 - **Report assistant**: AG Studio's agents run on Claude through the server, with one extra tool that sends payment reminders.
 - Evals in `apps/api/src/ai/*.eval.ts` (23 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
 
-![After the live: a recap at the bottom of the order book](docs/images/after-live.jpg)
+![After the live: the recap at the top of the seller's table, and an invoiced order](docs/images/after-live.jpg)
 
 ## Render Workflows
 
@@ -66,7 +66,7 @@ Tasks only touch Postgres and PayPal; their live updates reach browsers through 
 
 ## AG Studio
 
-The Report tab is an AG Studio 3 page themed as the same order book: takings, money still held, units by product, stock with held and waiting counts, and every order line with custom cells (highlighter for held, PAID stamp, struck-through cancellations, clickable PayPal capture ids). It updates live. Its AI assistant runs AG Studio's built-in agents on Claude plus a `send_payment_reminder` tool.
+The Report tab is an AG Studio 3 page on the same kraft table: takings, money still held, units by product, stock with held and waiting counts, and every order line with custom cells (held in yellow, PAID in black, struck-through cancellations, clickable PayPal capture ids). It updates live. Its AI assistant runs AG Studio's built-in agents on Claude plus a `send_payment_reminder` tool.
 
 ![The report with its AI assistant sending reminders](docs/images/report-ai.jpg)
 
@@ -144,7 +144,7 @@ Tests: `pnpm test` (needs a `plusone_test` database: `docker exec plusone-db psq
 
 - One demo seller and one live at a time; the live page is the seller's own, not TikTok or Facebook.
 - PayPal sandbox only, in USD.
-- The AI asks when it can't tell, but it can still misread; every change it makes shows up in the order book and the buyer's slip, and buyers can correct it in chat.
+- The AI asks when it can't tell, but it can still misread; every change it makes shows up on the seller's labels and the buyer's own label, and buyers can correct it in chat.
 
 ## License
 

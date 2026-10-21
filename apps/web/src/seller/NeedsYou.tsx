@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useLive } from "../lib/useLiveRoom";
 
-// What only the seller can decide, written in red pen at the top of the book.
-// Everything else PlusOne handles in the chat, so this is usually empty or one
-// line long. Money only goes back when the seller presses Refund.
+// What only the seller can decide, on red and white packing tape across the
+// top of the table. Everything else PlusOne handles in the chat, so this is
+// usually empty or one strip long. Money only goes back when the seller
+// presses Refund.
 
 const KIND_LABEL: Record<string, string> = {
   question: "asks",
@@ -43,46 +44,41 @@ export function NeedsYou({ sessionId, token }: { sessionId: string; token: strin
 
   if (items.length === 0 && !error) return null;
   return (
-    <section aria-label="Needs you" className="mb-(--rule-h) text-pen">
+    <section aria-label="Needs you" className="mb-3 flex flex-col gap-2.5">
       <h2 className="sr-only">Needs you</h2>
-      <ul>
-        {items.map((item) => (
-          <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-            <p className="font-hand text-xl leading-(--rule-h)">
-              {item.buyerName && <b className="mr-1.5">{item.buyerName}</b>}
-              <span className="mr-2 text-base opacity-80">
-                {KIND_LABEL[item.kind] ?? item.kind}:
-              </span>
+      {items.map((item) => (
+        <div key={item.id} className="tape">
+          <div className="flex flex-wrap items-center gap-3 rounded-[3px] bg-label px-3 py-2.5">
+            <p className="min-w-0 flex-1 text-[15px] leading-snug">
+              <b className="mr-1 font-extrabold">
+                {item.buyerName} {KIND_LABEL[item.kind] ?? item.kind}:
+              </b>
               {item.summary.replace(/^[^:]+:\s*/, "")}
             </p>
-            <div className="flex gap-2">
-              {item.refund && (
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    act(item.id, () => api.refundLine(item.refund?.lineId ?? "", token))
-                  }
-                  className="rounded-full border-[1.5px] border-pen bg-white px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
-                >
-                  {busy === item.id
-                    ? "Refunding…"
-                    : `Refund ${formatMoney(item.refund.amountCents, item.refund.currency)} with PayPal`}
-                </button>
-              )}
+            {item.refund && (
               <button
                 type="button"
                 disabled={busy !== null}
-                onClick={() => act(item.id, () => api.resolveAttention(item.id, token))}
-                className="rounded-full border-[1.5px] border-pen bg-white px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
+                onClick={() => act(item.id, () => api.refundLine(item.refund?.lineId ?? "", token))}
+                className="rounded-full border-2 border-black bg-black px-3.5 py-1.5 text-[13px] font-bold text-white disabled:opacity-50"
               >
-                Done
+                {busy === item.id
+                  ? "Refunding…"
+                  : `Refund ${formatMoney(item.refund.amountCents, item.refund.currency)} with PayPal`}
               </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {error && <p className="font-hand text-lg">{error}</p>}
+            )}
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => act(item.id, () => api.resolveAttention(item.id, token))}
+              className="rounded-full border-2 border-black bg-label px-3.5 py-1.5 text-[13px] font-bold disabled:opacity-50"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ))}
+      {error && <p className="rounded-[10px] bg-label px-3 py-2 text-sm text-pen">{error}</p>}
     </section>
   );
 }

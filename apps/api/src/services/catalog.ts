@@ -2,7 +2,7 @@ import type { ProductDTO, SessionDTO } from "@plusone/shared";
 import { and, asc, desc, eq, inArray, lte, ne } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { liveSessions, products, sellers, showcases, variants } from "../db/schema.js";
-import { activeDealsText } from "./rules.js";
+import { activeBundles, activeDealsText } from "./rules.js";
 
 export async function getProducts(tx: Tx, sellerId: string): Promise<ProductDTO[]> {
   const productRows = await tx
@@ -77,6 +77,7 @@ export async function getSessionDTO(tx: Tx, sessionId: string): Promise<SessionD
     currentProductId: session.currentProductId,
     hostVideoOn: false,
     deals: await activeDealsText(tx, sessionId),
+    bundles: await activeBundles(tx, sessionId),
     seller: {
       id: seller.id,
       handle: seller.handle,

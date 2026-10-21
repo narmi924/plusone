@@ -60,20 +60,24 @@ function Report({ token }: { token: string }) {
   if (!session || !data) return <p className="p-8 text-quiet">Opening the report…</p>;
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-label">
       <ConsoleTabs
         sellerName={session.seller.name}
         current="report"
         ended={session.status === "ended"}
       />
       {orders.length === 0 ? (
-        <div className="book flex-1 pt-24 pl-21">
-          <p className="font-hand text-[22px] leading-(--rule-h) text-ink">
-            Nothing ordered yet tonight. The report fills in as buyers say +1.
-          </p>
-          <Link to="/seller" className="text-sm underline">
-            Back to tonight's book
-          </Link>
+        <div className="kraft flex flex-1 items-start justify-center px-4 pt-24">
+          <div className="label w-full max-w-md">
+            <p className="zone px-5 py-4 text-[17px] leading-snug font-bold">
+              Nothing ordered yet tonight. The report fills in as buyers say +1.
+            </p>
+            <div className="zone px-5 py-3">
+              <Link to="/seller" className="text-sm font-bold underline">
+                Back to tonight's book
+              </Link>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="min-h-0 flex-1">

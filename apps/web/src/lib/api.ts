@@ -129,6 +129,11 @@ export const api = {
     body: { carrier: string; trackingNumber: string; carrierName?: string },
     sellerToken: string,
   ) => request<{ ok: true }>(`/api/seller/orders/${orderId}/ship`, { body, sellerToken }),
+  remind: (sessionId: string, orderNumber: number, sellerToken: string) =>
+    request<{ ok: true; buyer: string | null; minutesLeft: number }>(
+      `/api/seller/sessions/${sessionId}/orders/${orderNumber}/remind`,
+      { method: "POST", body: {}, sellerToken },
+    ),
   endLive: (sessionId: string, sellerToken: string) =>
     request<{ owing: number }>(`/api/seller/sessions/${sessionId}/end`, {
       method: "POST",

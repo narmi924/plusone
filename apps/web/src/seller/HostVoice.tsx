@@ -6,7 +6,7 @@ import { useLive } from "../lib/useLiveRoom";
 
 // The host sells the way they always do, out loud. PlusOne listens and turns
 // announcements ("this one 39, only 3 left", "dress and blouse together, five
-// off") into sticky notes on the book; one tap applies a note. Nothing changes
+// off") into cards on the table; one tap applies a card. Nothing changes
 // without that tap.
 
 export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpeech> }) {
@@ -17,7 +17,7 @@ export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpee
 
   return (
     <div
-      className={`shrink-0 rounded-[10px] p-3 ${on ? "bg-sticker" : "border-[1.5px] border-black"}`}
+      className={`shrink-0 rounded-[10px] border-2 border-black p-3 ${on ? "bg-pale" : "bg-label"}`}
     >
       <div className="flex items-center gap-2">
         <button
@@ -25,7 +25,7 @@ export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpee
           disabled={speech.state === "starting"}
           onClick={() => void (on ? speech.stop() : speech.start(language))}
           aria-pressed={on}
-          className="flex-1 text-left text-sm font-extrabold disabled:opacity-60"
+          className="min-w-0 flex-1 text-left text-sm leading-tight font-extrabold disabled:opacity-60"
         >
           {on
             ? "Listening to you"
@@ -38,7 +38,7 @@ export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpee
           disabled={on}
           onChange={(e) => setLanguage(e.target.value as HostLanguage)}
           aria-label="Language you're speaking"
-          className="rounded-full bg-white/70 px-2 py-1 text-xs font-semibold"
+          className="w-[84px] shrink-0 rounded-full border-[1.5px] border-black bg-label px-1.5 py-0.5 text-xs font-semibold"
         >
           {HOST_LANGUAGES.map((l) => (
             <option key={l.code} value={l.code}>
@@ -60,7 +60,7 @@ export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpee
           )
         ) : (
           <span className="text-quiet">
-            Prices, new items and deals you say out loud become notes you can apply.
+            Prices, new items and deals you say out loud become cards you can apply.
           </span>
         )}
       </p>
@@ -104,40 +104,46 @@ export function VoiceCards({ sessionId, token }: { sessionId: string; token: str
 
   return (
     <>
-      {proposed.map((rule, i) => (
+      {proposed.map((rule) => (
         <article
           key={rule.id}
-          className="relative float-right clear-right mb-4 ml-6 w-75 bg-sticker px-4 py-3.5 text-black shadow-[0_14px_28px_-12px_rgb(0_0_0/0.45)]"
-          style={{ rotate: `${i % 2 ? -1.5 : 2}deg` }}
+          className="mb-3 flex flex-wrap items-center gap-3 rounded-[10px] border-2 border-black bg-pale px-3.5 py-3"
         >
-          <div className="text-xs font-bold">{KIND_LABEL[rule.kind]}, from what you said</div>
-          <h3 className="mt-1 text-xl leading-tight font-extrabold">{rule.summary}</h3>
-          <p className="mt-1 font-hand text-base leading-snug">“{rule.quote}”</p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => act(rule.id, () => api.applyRule(rule.id, token))}
-              className="rounded-full bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {busy === rule.id ? "Applying…" : "Apply"}
-            </button>
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => act(rule.id, () => api.dismissRule(rule.id, token))}
-              className="rounded-full px-3 py-2 text-sm font-bold disabled:opacity-50"
-            >
-              Not now
-            </button>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold">{KIND_LABEL[rule.kind]}, from what you said</div>
+            <h3 className="text-[17px] leading-tight font-extrabold">{rule.summary}</h3>
+            <p className="text-[13px] leading-snug text-black/70">You said: "{rule.quote}"</p>
           </div>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => act(rule.id, () => api.applyRule(rule.id, token))}
+            className="rounded-full border-2 border-black bg-black px-4 py-1.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {busy === rule.id ? "Applying…" : "Apply"}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => act(rule.id, () => api.dismissRule(rule.id, token))}
+            className="rounded-full border-2 border-black bg-label px-3.5 py-1.5 text-sm font-bold disabled:opacity-50"
+          >
+            Not now
+          </button>
         </article>
       ))}
-      {active.map((r) => (
-        <p key={r.id} className="font-hand text-xl leading-(--rule-h) text-pen">
-          {r.summary}
-        </p>
-      ))}
+      {active.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {active.map((r) => (
+            <span
+              key={r.id}
+              className="rounded-full border-2 border-dashed border-black bg-label px-3 py-1 text-[13px] font-bold"
+            >
+              On now: {r.summary}
+            </span>
+          ))}
+        </div>
+      )}
     </>
   );
 }

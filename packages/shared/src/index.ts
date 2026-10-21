@@ -75,6 +75,8 @@ export interface SessionDTO {
   hostVideoOn: boolean;
   /** Deals and limits the host has announced and confirmed, one line each. */
   deals: string[];
+  /** Active "buy these together" deals, so a buyer can be offered the missing piece. */
+  bundles: Array<{ summary: string; productCodes: string[] }>;
   seller: SellerDTO;
   products: ProductDTO[];
 }

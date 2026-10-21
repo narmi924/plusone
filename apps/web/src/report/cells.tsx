@@ -1,38 +1,26 @@
 import type { CustomCellRendererProps } from "ag-grid-react";
 import type { CSSProperties } from "react";
 
-// Grid cells written the way the order book is: held items highlighted, paid
-// ones stamped, refunds in red pen, cancellations struck through.
+// Grid cells in the labels' language: held in yellow, paid as a black strip,
+// refunds in red, cancellations struck through.
 
 const STRUCK: CSSProperties = {
-  color: "#8b97bd",
+  color: "#6a6258",
   textDecoration: "line-through",
-  textDecorationColor: "#e4002b",
+};
+
+const PILL: CSSProperties = {
+  borderRadius: 999,
+  padding: "2px 9px",
+  fontSize: 12,
+  fontWeight: 800,
+  display: "inline-block",
+  lineHeight: 1.4,
 };
 
 const STATUS: Record<string, { label: string; style: CSSProperties }> = {
-  held: {
-    label: "Held",
-    style: {
-      background: "linear-gradient(transparent 22%, #ffe500 22%, #ffe500 86%, transparent 86%)",
-      padding: "0 4px",
-      fontWeight: 700,
-    },
-  },
-  paid: {
-    label: "PAID",
-    style: {
-      border: "2px solid #13883e",
-      color: "#13883e",
-      borderRadius: 3,
-      padding: "1px 5px",
-      fontSize: 11,
-      fontWeight: 800,
-      letterSpacing: "0.04em",
-      display: "inline-block",
-      transform: "rotate(-4deg)",
-    },
-  },
+  held: { label: "Held", style: { ...PILL, background: "#fff3a8", border: "1.5px solid #000" } },
+  paid: { label: "PAID", style: { ...PILL, background: "#000", color: "#fff" } },
   refunded: { label: "Refunded", style: { color: "#e4002b", fontWeight: 700 } },
   cancelled: { label: "Cancelled", style: STRUCK },
   released: { label: "Hold ended", style: STRUCK },
@@ -56,7 +44,7 @@ export function MoneyCell({ value, valueFormatted }: CustomCellRendererProps) {
 
 export function CaptureCell({ value, node }: CustomCellRendererProps) {
   if (node?.footer) return null;
-  if (!value) return <span style={{ color: "#6b6b66" }}>not paid</span>;
+  if (!value) return <span style={{ color: "#6a6258" }}>not paid</span>;
   const id = String(value);
   return (
     <a
@@ -64,7 +52,7 @@ export function CaptureCell({ value, node }: CustomCellRendererProps) {
       target="_blank"
       rel="noreferrer"
       title={`PayPal capture ${id}`}
-      style={{ color: "#2140a8", fontVariantNumeric: "tabular-nums" }}
+      style={{ color: "#000", fontVariantNumeric: "tabular-nums", textDecoration: "underline" }}
     >
       {id}
     </a>

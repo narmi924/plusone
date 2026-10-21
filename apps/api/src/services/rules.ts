@@ -249,6 +249,14 @@ export async function activeLimits(tx: Tx, sessionId: string) {
   return limits;
 }
 
+/** Active bundle deals and the products in each. */
+export async function activeBundles(tx: Tx, sessionId: string) {
+  const active = await listRules(tx, sessionId, ["active"]);
+  return active
+    .filter((r) => r.kind === "bundle")
+    .map((r) => ({ summary: r.summary, productCodes: r.productCodes }));
+}
+
 /** One line per active deal or limit, for buyers and for PlusOne's context. */
 export async function activeDealsText(tx: Tx, sessionId: string) {
   const active = await listRules(tx, sessionId, ["active"]);

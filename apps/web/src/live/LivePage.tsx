@@ -1,29 +1,15 @@
 import { PayPalProvider } from "@paypal/react-paypal-js/sdk-v6";
-import type { BuyerDTO, ChatMessageDTO, PublicConfig } from "@plusone/shared";
+import type { BuyerDTO, PublicConfig } from "@plusone/shared";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { api } from "../lib/api";
+import { recentClaims } from "../lib/claims";
 import { BUYER_TOKEN_KEY, readStored, writeStored } from "../lib/storage";
 import { useLive, useLiveRoom } from "../lib/useLiveRoom";
 import { TrackAudio, TrackVideo, useWatchLive } from "../lib/video";
 import { ChatFeed, ChatInput, PinnedHowTo } from "./Chat";
-import { MyOrderBar, OrderBook } from "./OrderSlip";
+import { MyOrderBar, OrderPanel } from "./OrderSlip";
 import { Stage } from "./Stage";
-
-/** "+1 Aisha, Blue M" from PlusOne's room announcements of the last minute. */
-function recentPlusOnes(messages: ChatMessageDTO[], now: number) {
-  const out: string[] = [];
-  for (let i = messages.length - 1; i >= 0 && out.length < 3; i--) {
-    const m = messages[i];
-    if (m?.authorKind !== "system") continue;
-    if (now - new Date(m.createdAt).getTime() > 60_000) break;
-    const got = m.body.match(/^(.+?) got (?:the last one: )?(.+?)(?: from the waitlist)?$/);
-    if (!got?.[1] || !got[2]) continue;
-    const parts = got[2].split(", ");
-    out.push(`${got[1]}, ${parts.length > 1 ? parts.at(-1) : got[2]}`);
-  }
-  return out;
-}
 
 export function LivePage() {
   const { handle = "lumicloset" } = useParams();
@@ -58,44 +44,51 @@ export function LivePage() {
   const connected = useLive((s) => s.connected);
   const watch = useWatchLive(session?.id ?? null, session?.hostVideoOn ?? false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: now ticks so old +1s fade out
-  const plusOnes = useMemo(() => recentPlusOnes(messages, Date.now()), [messages, now]);
+  const claims = useMemo(
+    () => recentClaims(messages, { limit: 3, withinMs: 60_000 }),
+    [messages, now],
+  );
 
   if (error) return <p className="p-8 text-quiet">This live couldn't be loaded: {error}</p>;
   if (!session) return <p className="p-8 text-quiet">Joining the live…</p>;
 
   const product = session.products.find((p) => p.id === session.currentProductId) ?? null;
   const paypalReady = Boolean(config?.paypalClientId);
+  const addToChat = (text: string) => {
+    setSheetOpen(false);
+    setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }));
+  };
   const book = (
-    <OrderBook
-      product={product}
+    <OrderPanel
+      session={session}
       orders={orders}
       buyerToken={activeToken}
+      buyerName={buyer?.name ?? null}
       paypalReady={paypalReady}
-      deals={session.deals}
-      ended={session.status === "ended"}
       sandboxBuyer={config?.demo?.sandboxBuyer ?? null}
+      onAdd={addToChat}
     />
   );
 
   const page = (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_410px]">
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
       <Stage
         product={product}
         currency={session.seller.currency}
         deals={session.deals}
         ended={session.status === "ended"}
-        plusOnes={plusOnes}
+        claims={claims}
         video={
           watch.video && <TrackVideo track={watch.video} className="h-full w-full object-cover" />
         }
         header={
           <div className="flex items-center gap-3">
             <span
-              className={`rounded px-2 py-1.5 text-[13px] leading-none font-extrabold [font-stretch:112%] ${session.status === "ended" ? "bg-quiet" : "bg-pen"}`}
+              className={`rounded-[5px] px-2 py-1.5 text-[13px] leading-none font-extrabold [font-stretch:112%] ${session.status === "ended" ? "bg-quiet" : "bg-pen"}`}
             >
               {session.status === "ended" ? "ENDED" : "LIVE"}
             </span>
-            <div className="over-video min-w-0">
+            <div className="min-w-0 rounded-xl bg-black/40 px-3 py-1.5">
               <h1 className="truncate text-[17px] leading-tight font-bold">
                 {session.seller.name}
               </h1>
@@ -125,15 +118,10 @@ export function LivePage() {
         }
       >
         {session.status !== "ended" && (
-          <PinnedHowTo
-            shop={session.seller.name}
-            {...(activeToken
-              ? { onTry: (text: string) => setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 })) }
-              : {})}
-          />
+          <PinnedHowTo shop={session.seller.name} {...(activeToken ? { onTry: addToChat } : {})} />
         )}
         {/* newest at the bottom; older lines fade out at the top */}
-        <div className="flex max-h-[30vh] w-full sm:max-h-[42vh] max-w-136 flex-col justify-end overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_20%)]">
+        <div className="flex max-h-[30vh] w-full sm:max-h-[34vh] max-w-136 flex-col justify-end overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_20%)]">
           <ChatFeed
             messages={messages.slice(-40)}
             thinking={thinking}
@@ -142,7 +130,13 @@ export function LivePage() {
             onOption={activeToken ? (say) => void send(say) : undefined}
           />
         </div>
-        {activeToken && <MyOrderBar orders={orders} onOpen={() => setSheetOpen(true)} />}
+        {activeToken && (
+          <MyOrderBar
+            orders={orders}
+            holdMinutes={session.seller.holdMinutes}
+            onOpen={() => setSheetOpen(true)}
+          />
+        )}
         {session.status === "ended" ? (
           <p className="over-video py-2 text-center text-sm font-semibold">
             This live has ended. Thanks for watching!
@@ -162,7 +156,7 @@ export function LivePage() {
       </Stage>
 
       <aside
-        className="hidden overflow-y-auto border-l border-line lg:block"
+        className="kraft hidden overflow-y-auto border-l-2 border-black lg:block"
         aria-label="Your order"
       >
         {book}
@@ -180,7 +174,8 @@ export function LivePage() {
             aria-label="Close"
             onClick={() => setSheetOpen(false)}
           />
-          <div className="relative min-h-0 flex-1 overflow-y-auto rounded-t-2xl">
+          <div className="kraft relative min-h-0 flex-1 overflow-y-auto rounded-t-[22px]">
+            <div className="mx-auto mt-2.5 h-[5px] w-11 rounded-full bg-black/25" />
             <button
               type="button"
               onClick={() => setSheetOpen(false)}
@@ -257,7 +252,7 @@ function JoinBar({ onJoined }: { onJoined: (token: string, buyer: BuyerDTO) => v
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full bg-sticker px-6 py-3 font-extrabold text-black disabled:opacity-50"
+          className="rounded-full border-2 border-black bg-sticker px-6 py-3 font-extrabold text-black disabled:opacity-50"
         >
           Join
         </button>

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 // The seller console's top bar: the live badge, the shop, and two views of
-// tonight: the order book (while selling) and the report (the numbers).
+// tonight: the labels (while selling) and the report (the numbers).
 
 export function ConsoleTabs({
   sellerName,
@@ -21,26 +21,26 @@ export function ConsoleTabs({
     <Link
       to={to}
       aria-current={active ? "page" : undefined}
-      className={`border-b-[3px] px-1 pt-1 pb-1.5 text-sm font-bold ${
-        active ? "border-pen text-black" : "border-transparent text-quiet hover:text-black"
+      className={`flex items-center px-1 text-sm font-bold ${
+        active ? "text-black shadow-[inset_0_-4px_0_#000]" : "text-quiet hover:text-black"
       }`}
     >
       {label}
     </Link>
   );
   return (
-    <header className="flex h-15 shrink-0 items-center gap-4 border-b border-line px-6">
+    <header className="flex h-15 shrink-0 items-center gap-4 border-b-2 border-black bg-label px-6">
       <span
-        className={`rounded px-2 py-1.5 text-[13px] leading-none font-extrabold text-white [font-stretch:112%] ${ended ? "bg-quiet" : "bg-pen"}`}
+        className={`rounded-[5px] px-2 py-1.5 text-[13px] leading-none font-extrabold text-white [font-stretch:112%] ${ended ? "bg-quiet" : "bg-pen"}`}
       >
         {ended ? "ENDED" : "LIVE"}
       </span>
       <h1 className="text-lg font-extrabold">{sellerName}</h1>
-      <nav className="ml-4 flex gap-5 self-end" aria-label="Console">
-        {tab("/seller", "Tonight's book", current === "book")}
+      <nav className="ml-4 flex gap-5 self-stretch" aria-label="Console">
+        {tab("/seller", "Tonight", current === "book")}
         {tab("/seller/report", "Report", current === "report")}
       </nav>
-      <div className="ml-auto flex items-baseline gap-6 tabular">{children}</div>
+      <div className="ml-auto flex items-center gap-6 tabular">{children}</div>
     </header>
   );
 }

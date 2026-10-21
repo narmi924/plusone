@@ -1,26 +1,29 @@
 @import "tailwindcss";
 
-/* Two materials. The live room: a black stage with the video, chat floating
-   over it, and the yellow promo sticker supermarkets put on deals (red
-   numerals). The order book: the exercise book sellers kept by hand during a
-   live, now written by PlusOne in blue ballpoint, with highlighter on what's
-   held, a red margin and red pen for what needs the seller, a green tick when
-   paid. Sticker yellow is the highlighter; the price red is the margin red. */
+/* Two materials. The live room: the host's video on a black stage, with the
+   price on a shelf label. Everything PlusOne writes down is a shipping label,
+   because that is where every "+1" ends up: white die-cut label stock with
+   rounded corners and 2px black print, laid on kraft paper. Yellow is the one
+   loud colour, used for what is held and waiting; red is for live and for
+   what only the seller can decide; green is money in. */
 @theme {
   --color-stage: #000000;
-  --color-paper: #fbfcfe;
-  --color-ink: #2140a8;
-  --color-quiet: #6b6b66;
-  --color-line: #dcdcd6;
+  --color-kraft: #d9bc93;
+  --color-label: #ffffff;
+  --color-paper: #f6f1e8;
+  --color-ink: #000000;
+  --color-quiet: #6a6258;
+  --color-line: #e7e1d7;
   --color-sticker: #ffe500;
+  --color-pale: #fff3a8;
   --color-pen: #e4002b;
-  --color-rule: #d3e0f4;
   --color-paid: #13883e;
+
+  --radius-label: 10px;
 
   --font-sans:
     "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", "Noto Sans Thai", sans-serif;
-  --font-hand: "Kalam", "Segoe Print", "Bradley Hand", cursive;
 }
 
 :root {
@@ -35,14 +38,14 @@ body,
 }
 
 body {
-  background: var(--color-paper);
+  background: var(--color-kraft);
   color: #000;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-ink);
+  outline: 2px solid #000;
   outline-offset: 2px;
 }
 
@@ -50,65 +53,83 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* A page of the order book: blue rules every --rule-h, red margin at --margin-x. */
-.book {
-  --rule-h: 32px;
-  --margin-x: 46px;
+/* Kraft paper: the table labels are laid on. A soft highlight and faint fibres. */
+.kraft {
   background:
-    linear-gradient(
-      to right,
-      transparent var(--margin-x),
-      var(--color-pen) var(--margin-x),
-      var(--color-pen) calc(var(--margin-x) + 1.5px),
-      transparent calc(var(--margin-x) + 1.5px)
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0 calc(var(--rule-h) - 1px),
-      var(--color-rule) calc(var(--rule-h) - 1px) var(--rule-h)
-    ),
-    var(--color-paper);
-  background-attachment: local;
+    radial-gradient(circle at 20% 8%, rgb(255 255 255 / 0.18), transparent 42%),
+    repeating-linear-gradient(90deg, transparent 0 9px, rgb(120 80 30 / 0.05) 9px 10px),
+    var(--color-kraft);
 }
 
-/* Highlighter pen across a word. */
-.highlight {
-  background: linear-gradient(
-    transparent 30%,
-    var(--color-sticker) 30%,
-    var(--color-sticker) 86%,
-    transparent 86%
+/* A shipping label: die-cut corners, 2px print, resting on the paper. */
+.label {
+  background: var(--color-label);
+  border: 2px solid #000;
+  border-radius: var(--radius-label);
+  box-shadow:
+    0 1px 2px rgb(80 50 10 / 0.18),
+    0 8px 18px rgb(80 50 10 / 0.14);
+  overflow: hidden;
+}
+
+/* Label zones are split by 1.5px rules. */
+.zone + .zone {
+  border-top: 1.5px solid #000;
+}
+
+/* The big number on a label, read from across the room like a sort code. */
+.sort {
+  font-weight: 900;
+  font-stretch: 62%;
+  line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The hold running out: a bar that drains. */
+.drain {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.12);
+  overflow: hidden;
+}
+.drain > i {
+  display: block;
+  height: 100%;
+  background: #000;
+  border-radius: 999px;
+  transition: width 1s linear;
+}
+
+/* Red and white packing tape: what only the seller can decide. */
+.tape {
+  background: repeating-linear-gradient(-45deg, var(--color-pen) 0 10px, #fff 10px 22px);
+  padding: 6px;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgb(80 50 10 / 0.18);
+}
+
+/* Paid labels carry a barcode. */
+.barcode {
+  height: 26px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    #000 0 2px,
+    #fff 2px 4px,
+    #000 4px 7px,
+    #fff 7px 8px,
+    #000 8px 9px,
+    #fff 9px 12px,
+    #000 12px 15px,
+    #fff 15px 16px
   );
-  padding: 0 4px;
-  margin-left: -4px;
-  box-decoration-break: clone;
 }
 
-/* Struck through in red pen. */
+/* Struck through: changed or cancelled. */
 .struck {
   text-decoration: line-through;
-  text-decoration-color: var(--color-pen);
-  text-decoration-thickness: 2px;
-  color: #8b97bd;
-}
-
-/* The PAID stamp. */
-.stamp {
-  display: inline-block;
-  transform: rotate(-6deg);
-  border: 2px solid var(--color-paid);
-  color: var(--color-paid);
-  font: 800 12px / 1 var(--font-sans);
-  letter-spacing: 0.04em;
-  padding: 4px 6px;
-  border-radius: 3px;
-}
-
-/* Wide, heavy numerals for prices on stickers. */
-.price-type {
-  font-stretch: 125%;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  text-decoration-thickness: 1.5px;
+  color: var(--color-quiet);
 }
 
 /* Text over video stays readable on any picture. */
@@ -125,11 +146,11 @@ paypal-button {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(12px) rotate(-2deg);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotate(-2deg);
+    transform: translateY(0);
   }
 }
 
