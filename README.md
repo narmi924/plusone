@@ -80,30 +80,9 @@ The PayPal code was written with the APIMatic Context Plugin for Claude Code (Pa
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph Browser
-    B[Buyer live room]
-    S[Seller console + AG Studio report]
-  end
-  subgraph Render
-    W[Web service<br/>Fastify + Socket.IO + web app]
-    J[Workflows service<br/>closeOutLive, invoiceBuyer,<br/>writeRecap, remindToPay]
-    D[(Postgres)]
-  end
-  B <-->|Socket.IO| W
-  S <-->|Socket.IO| W
-  W --> D
-  J --> D
-  W -->|start task runs| J
-  D -->|NOTIFY pushes| W
-  W <--> C[Claude]
-  J --> C
-  W <--> P[PayPal<br/>Orders, Webhooks, Refunds,<br/>Tracking, Invoicing]
-  J --> P
-  W <--> L[LiveKit video]
-  W <--> G[Deepgram speech]
-```
+![PlusOne architecture: buyer and seller browsers, the web service, Postgres and Render Workflows on Render, and PayPal, Claude, LiveKit and Deepgram](docs/images/architecture.png)
+
+Source: [`docs/architecture.drawio`](docs/architecture.drawio) (draw.io).
 
 ```text
 apps/api        Fastify + Socket.IO server: chat understanding, orders and stock, PayPal, background tasks
