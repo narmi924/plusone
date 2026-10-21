@@ -8,7 +8,8 @@ import Fastify from "fastify";
 import { createHostListener } from "./ai/hostSpeech.js";
 import { createInterpreter } from "./ai/interpret.js";
 import { createDb, runMigrations } from "./db/client.js";
-import { liveSessions, orders } from "./db/schema.js";
+import { liveSessions, orders, sellers } from "./db/schema.js";
+import { seedDemo } from "./db/seed.js";
 import { loadEnv } from "./env.js";
 import { createHostEars } from "./hostEars.js";
 import { buildJobDeps } from "./jobs/deps.js";
@@ -47,6 +48,11 @@ await app.register(cors, { origin: true });
 
 const { db, pool } = createDb(env.DATABASE_URL);
 await runMigrations(db);
+// A brand-new database (first deploy) opens with the demo shop already live.
+if ((await db.select({ id: sellers.id }).from(sellers).limit(1)).length === 0) {
+  await seedDemo(db);
+  app.log.info("empty database: seeded the demo shop");
+}
 
 const realtime = createRealtime(app.server, { db, env, log: app.log });
 
