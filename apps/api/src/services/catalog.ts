@@ -75,6 +75,7 @@ export async function getSessionDTO(tx: Tx, sessionId: string): Promise<SessionD
     title: session.title,
     status: session.status,
     currentProductId: session.currentProductId,
+    previousProductId: await previousShowcaseProductId(tx, sessionId, session.currentProductId),
     hostVideoOn: false,
     deals: await activeDealsText(tx, sessionId),
     bundles: await activeBundles(tx, sessionId),

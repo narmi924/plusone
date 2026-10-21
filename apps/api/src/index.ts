@@ -26,7 +26,7 @@ import { createChatPipeline } from "./pipeline.js";
 import { createRealtime } from "./realtime.js";
 import { registerRoutes } from "./routes.js";
 import { toMessageDTO } from "./services/chat.js";
-import { startDemoKeeper } from "./services/demo.js";
+import { startDemoHost, startDemoKeeper } from "./services/demo.js";
 import { startHoldSweeper } from "./services/holds.js";
 import { createNotifier } from "./services/notify.js";
 import { REMIND_BEFORE_MS } from "./services/reminders.js";
@@ -149,6 +149,9 @@ const stopSweeper = startHoldSweeper({
 const stopDemoKeeper = env.DEMO_MODE
   ? startDemoKeeper({ db, log: app.log, onReset: () => realtime.io.disconnectSockets() })
   : () => undefined;
+const stopDemoHost = env.DEMO_MODE
+  ? startDemoHost({ db, realtime, log: app.log })
+  : () => undefined;
 
 let webhookId: string | null = env.PAYPAL_WEBHOOK_ID || null;
 await registerRoutes(app, {
@@ -193,6 +196,7 @@ if (existsSync(webDist)) {
 app.addHook("onClose", async () => {
   stopSweeper();
   stopDemoKeeper();
+  stopDemoHost();
   await stopPushes();
   realtime.io.close();
   await pool.end();

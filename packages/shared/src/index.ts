@@ -71,6 +71,8 @@ export interface SessionDTO {
   title: string;
   status: SessionStatus;
   currentProductId: string | null;
+  /** What was on screen before it, for "the one just now". */
+  previousProductId: string | null;
   /** The host's camera is on right now. */
   hostVideoOn: boolean;
   /** Deals and limits the host has announced and confirmed, one line each. */

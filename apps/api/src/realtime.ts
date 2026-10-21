@@ -160,6 +160,14 @@ export function createRealtime(
     isVideoOn(sessionId: string) {
       return videoOn.get(sessionId) ?? false;
     },
+    /** People with the live page open right now. */
+    watching(sessionId: string) {
+      return io.sockets.adapter.rooms.get(sessionRoom(sessionId))?.size ?? 0;
+    },
+    /** A seller console is open for this session. */
+    hasSeller(sessionId: string) {
+      return (io.sockets.adapter.rooms.get(sellerRoom(sessionId))?.size ?? 0) > 0;
+    },
     setVideo(sessionId: string, on: boolean) {
       videoOn.set(sessionId, on);
       io.to(sessionRoom(sessionId)).emit("video:status", { on });

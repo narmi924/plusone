@@ -1,4 +1,4 @@
-import type { ChatMessageDTO } from "@plusone/shared";
+import type { ChatMessageDTO, ProductDTO } from "@plusone/shared";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 // Two ways to show the same chat. Over the video for buyers, the way live apps
@@ -121,11 +121,36 @@ function Reading({ overlay }: { overlay: boolean }) {
 }
 
 /** The bar at the bottom of the stage: type anything, or tap the big +1. */
-/** Things to try, the way buyers actually type them. */
-const TRY_SAYING = ["+1 sage M", "the one before, size L", "change it to blue", "cancel that"];
+/** Things to try for what's on screen, the way buyers actually type them. */
+export function tryLines(current: ProductDTO | null, previous: ProductDTO | null) {
+  const inStock = (p: ProductDTO) => p.variants.filter((v) => v.available > 0);
+  const option = (v: ProductDTO["variants"][number]) =>
+    [v.color?.toLowerCase(), v.size].filter(Boolean).join(" ");
+  const lines: string[] = [];
+  const now = current ? inStock(current) : [];
+  const first = now[0];
+  lines.push(first && option(first) ? `+1 ${option(first)}` : "+1");
+  const before = previous ? inStock(previous)[0] : undefined;
+  if (previous && before) {
+    const noun = previous.name.split(" ").at(-1)?.toLowerCase() ?? "one";
+    lines.push(`the ${noun} just now, ${option(before) || "one"}`);
+  }
+  const other = now.find((v) => v.color && v.color !== first?.color);
+  lines.push(other?.color ? `change it to ${other.color.toLowerCase()}` : "make it 2");
+  lines.push("cancel that");
+  return lines;
+}
 
 /** The shop's pinned comment: how ordering works here, with lines to try. */
-export function PinnedHowTo({ shop, onTry }: { shop: string; onTry?: (text: string) => void }) {
+export function PinnedHowTo({
+  shop,
+  lines,
+  onTry,
+}: {
+  shop: string;
+  lines: string[];
+  onTry?: (text: string) => void;
+}) {
   return (
     <div className="w-full max-w-136 rounded-xl bg-black/55 px-3.5 py-2.5 backdrop-blur-sm">
       <p className="flex items-center gap-1.5 text-xs text-white/70">
@@ -138,7 +163,7 @@ export function PinnedHowTo({ shop, onTry }: { shop: string; onTry?: (text: stri
         Type +1 for what's on screen, or say it your way:
       </p>
       <div className="mt-1.5 flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
-        {TRY_SAYING.map((t) =>
+        {lines.map((t) =>
           onTry ? (
             <button
               key={t}

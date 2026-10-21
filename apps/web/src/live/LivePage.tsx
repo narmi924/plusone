@@ -7,7 +7,7 @@ import { recentClaims } from "../lib/claims";
 import { BUYER_TOKEN_KEY, readStored, writeStored } from "../lib/storage";
 import { useLive, useLiveRoom } from "../lib/useLiveRoom";
 import { TrackAudio, TrackVideo, useWatchLive } from "../lib/video";
-import { ChatFeed, ChatInput, PinnedHowTo } from "./Chat";
+import { ChatFeed, ChatInput, PinnedHowTo, tryLines } from "./Chat";
 import { MyOrderBar, OrderPanel } from "./OrderSlip";
 import { Stage } from "./Stage";
 
@@ -118,7 +118,14 @@ export function LivePage() {
         }
       >
         {session.status !== "ended" && (
-          <PinnedHowTo shop={session.seller.name} {...(activeToken ? { onTry: addToChat } : {})} />
+          <PinnedHowTo
+            shop={session.seller.name}
+            lines={tryLines(
+              product,
+              session.products.find((p) => p.id === session.previousProductId) ?? null,
+            )}
+            {...(activeToken ? { onTry: addToChat } : {})}
+          />
         )}
         {/* newest at the bottom; older lines fade out at the top */}
         <div className="flex max-h-[30vh] w-full sm:max-h-[34vh] max-w-136 flex-col justify-end overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_20%)]">

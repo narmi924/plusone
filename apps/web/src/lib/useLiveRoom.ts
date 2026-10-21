@@ -28,7 +28,7 @@ interface LiveState {
   setOrders: (o: OrderDTO[]) => void;
   upsertOrder: (o: OrderDTO) => void;
   applyStock: (changes: StockChange[]) => void;
-  setShowcase: (productId: string | null) => void;
+  setShowcase: (productId: string | null, previousProductId: string | null) => void;
   setHostVideo: (on: boolean) => void;
   setThinking: (messageId: string, done: boolean) => void;
   setConnected: (c: boolean) => void;
@@ -83,8 +83,10 @@ export const useLive = create<LiveState>((set) => ({
         },
       };
     }),
-  setShowcase: (productId) =>
-    set((s) => (s.session ? { session: { ...s.session, currentProductId: productId } } : s)),
+  setShowcase: (productId, previousProductId) =>
+    set((s) =>
+      s.session ? { session: { ...s.session, currentProductId: productId, previousProductId } } : s,
+    ),
   setHostVideo: (on) =>
     set((s) => (s.session ? { session: { ...s.session, hostVideoOn: on } } : s)),
   setThinking: (messageId, done) =>
@@ -168,7 +170,9 @@ export function useLiveRoom(opts: {
       );
       socket.on("order:updated", (o) => useLive.getState().upsertOrder(o));
       socket.on("stock:changed", (c) => useLive.getState().applyStock(c));
-      socket.on("showcase:changed", ({ productId }) => useLive.getState().setShowcase(productId));
+      socket.on("showcase:changed", ({ productId, previousProductId }) =>
+        useLive.getState().setShowcase(productId, previousProductId),
+      );
       socket.on("video:status", ({ on }) => useLive.getState().setHostVideo(on));
       socket.on("attention:changed", () => useLive.getState().bumpAttention());
       socket.on("rules:changed", () => useLive.getState().bumpRules());
