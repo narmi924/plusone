@@ -119,7 +119,7 @@ function Head({ shop, number, date }: { shop: string; number: number | null; dat
         <span className="text-[13px] text-quiet">Live, {date}</span>
       </div>
       <div className="sort border-l-[1.5px] border-black pt-4 text-center text-[54px] sm:text-[68px]">
-        {number === null ? "–" : sortNumber(number)}
+        {number === null ? <span className="text-pen">+1</span> : sortNumber(number)}
       </div>
     </div>
   );

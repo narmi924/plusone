@@ -114,6 +114,8 @@ scripts         Dev tunnel, end-to-end PayPal run, a crowd of demo buyers
 
 ## Try it
 
+**Live demo: <https://plusone-sjgp.onrender.com>** (buyers at `/live/lumicloset`, the seller console at `/seller`).
+
 The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's order shows a PayPal sandbox buyer to log in with. No real money moves. The shop resets itself after half an hour of quiet.
 
 ## Run locally
