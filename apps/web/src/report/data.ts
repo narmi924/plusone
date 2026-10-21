@@ -15,6 +15,10 @@ export interface LineRow {
   status: string;
   placed: string;
   captureId: string | null;
+  /** The amount again, split by what happened to it, so totals never come out empty. */
+  takenAmount: number;
+  heldAmount: number;
+  soldQty: number;
 }
 
 export interface StockRow {
@@ -65,6 +69,28 @@ const lineFields: AgFieldDefinition[] = [
       "held = reserved for the buyer, waiting for their PayPal payment; paid = PayPal captured the money; cancelled = the buyer cancelled before paying; released = the hold ran out unpaid; refunded = paid, then refunded with PayPal.",
   },
   { id: "placed", name: "Placed", format: "dateTimeFormat" },
+  {
+    id: "takenAmount",
+    name: "Paid amount",
+    format: "currencyFormat",
+    formatOptions: money,
+    context: { cell: "money" },
+    description: "The line amount if PayPal captured it, otherwise 0.",
+  },
+  {
+    id: "heldAmount",
+    name: "Owed amount",
+    format: "currencyFormat",
+    formatOptions: money,
+    context: { cell: "money" },
+    description: "The line amount if it's held and not paid yet, otherwise 0.",
+  },
+  {
+    id: "soldQty",
+    name: "Sold qty",
+    format: "integerFormat",
+    description: "The quantity if paid, otherwise 0.",
+  },
   { id: "captureId", name: "PayPal capture", format: "textFormat", context: { cell: "capture" } },
 ];
 
@@ -107,6 +133,9 @@ export function toLineRows(orders: OrderDTO[]): LineRow[] {
       status: l.status,
       placed: o.createdAt,
       captureId: l.status === "paid" || l.status === "refunded" ? o.captureId : null,
+      takenAmount: l.status === "paid" ? (l.qty * l.unitPriceCents) / 100 : 0,
+      heldAmount: l.status === "held" ? (l.qty * l.unitPriceCents) / 100 : 0,
+      soldQty: l.status === "paid" ? l.qty : 0,
     })),
   );
 }

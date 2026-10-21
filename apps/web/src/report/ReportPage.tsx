@@ -2,7 +2,7 @@ import type { WaitingDTO } from "@plusone/shared";
 import { type AgDataSourcesDefinition, AgStudioAiModule, type AgStudioModule } from "ag-studio";
 import { AgStudio, AgStudioProvider } from "ag-studio-react";
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router";
+import { Link, Navigate } from "react-router";
 import { api } from "../lib/api";
 import { readStored, SELLER_TOKEN_KEY } from "../lib/storage";
 import { useLive, useLiveRoom } from "../lib/useLiveRoom";
@@ -61,21 +61,36 @@ function Report({ token }: { token: string }) {
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <ConsoleTabs sellerName={session.seller.name} current="report" />
-      <div className="min-h-0 flex-1">
-        <AgStudioProvider modules={MODULES} {...(LICENSE ? { licenseKey: LICENSE } : {})}>
-          <AgStudio
-            style={STYLE}
-            theme={reportTheme}
-            data={data}
-            initialState={initialReport}
-            widgets={reportWidgets}
-            panels={PANELS}
-            ai={reportAi}
-            mode="edit"
-          />
-        </AgStudioProvider>
-      </div>
+      <ConsoleTabs
+        sellerName={session.seller.name}
+        current="report"
+        ended={session.status === "ended"}
+      />
+      {orders.length === 0 ? (
+        <div className="book flex-1 pt-24 pl-21">
+          <p className="font-hand text-[22px] leading-(--rule-h) text-ink">
+            Nothing ordered yet tonight. The report fills in as buyers say +1.
+          </p>
+          <Link to="/seller" className="text-sm underline">
+            Back to tonight's book
+          </Link>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <AgStudioProvider modules={MODULES} {...(LICENSE ? { licenseKey: LICENSE } : {})}>
+            <AgStudio
+              style={STYLE}
+              theme={reportTheme}
+              data={data}
+              initialState={initialReport}
+              widgets={reportWidgets}
+              panels={PANELS}
+              ai={reportAi}
+              mode="edit"
+            />
+          </AgStudioProvider>
+        </div>
+      )}
     </div>
   );
 }

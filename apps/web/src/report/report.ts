@@ -23,17 +23,17 @@ export const initialReport: AgReportState = {
       widgets: {
         taken: {
           type: "value",
-          dataMapping: { value: [{ id: "lines.amount", aggregation: "sum" }] },
+          dataMapping: { value: [{ id: "lines.takenAmount", aggregation: "sum" }] },
           format: { title: { enabled: true, text: "Taken with PayPal" } },
         },
         owed: {
           type: "value",
-          dataMapping: { value: [{ id: "lines.amount", aggregation: "sum" }] },
+          dataMapping: { value: [{ id: "lines.heldAmount", aggregation: "sum" }] },
           format: { title: { enabled: true, text: "Held, waiting to pay" } },
         },
         sold: {
           type: "value",
-          dataMapping: { value: [{ id: "lines.qty", aggregation: "sum" }] },
+          dataMapping: { value: [{ id: "lines.soldQty", aggregation: "sum" }] },
           format: { title: { enabled: true, text: "Items sold" } },
         },
         byProduct: {
@@ -87,9 +87,6 @@ export const initialReport: AgReportState = {
       },
       filter: {
         widget: {
-          taken: statusIs("paid"),
-          owed: statusIs("held"),
-          sold: statusIs("paid"),
           byProduct: statusIs("held", "paid"),
         },
       },

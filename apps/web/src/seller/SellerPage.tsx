@@ -291,11 +291,12 @@ function OrderLine({ order, token }: { order: OrderDTO; token: string }) {
             <span className="stamp">{order.status === "shipped" ? "SHIPPED" : "PAID"}</span>
           </>
         ) : order.status === "reserved" && order.invoice?.status === "sent" ? (
-          <span className="tabular" title="PayPal invoice sent; items held until it's due">
+          <span
+            className="whitespace-nowrap tabular"
+            title={`PayPal invoice sent; items held until it's due (${dueLabel(order.invoice.dueAt)})`}
+          >
             <span className="mr-1 font-medium text-quiet">invoiced</span>
-            <span className="rounded bg-sticker px-1.5 py-1">
-              due {dueLabel(order.invoice.dueAt)}
-            </span>
+            <span className="rounded bg-sticker px-1.5 py-1">{dueLabel(order.invoice.dueAt)}</span>
           </span>
         ) : order.status === "reserved" ? (
           <span className="rounded bg-sticker px-1.5 py-1 tabular">
