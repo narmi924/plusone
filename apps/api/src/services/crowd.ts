@@ -25,6 +25,9 @@ const LINES: Array<[string, string]> = [
 ];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// The seller password is public on the demo, so keep the button from being
+// pressed all day: a few runs an hour is plenty for anyone trying it.
+const MAX_PER_HOUR = 12;
 
 export function createSampleCrowd(deps: {
   db: Db;
@@ -34,6 +37,7 @@ export function createSampleCrowd(deps: {
 }) {
   const { db, log } = deps;
   let playing = false;
+  const starts: number[] = [];
 
   async function play(sessionId: string) {
     const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
@@ -72,9 +76,12 @@ export function createSampleCrowd(deps: {
   }
 
   return {
-    /** Starts the crowd in the background; false if one is already playing. */
+    /** Starts the crowd in the background; false if one is playing or the hour's runs are used up. */
     start(sessionId: string) {
-      if (playing) return false;
+      const now = Date.now();
+      while (starts.length > 0 && (starts[0] ?? 0) < now - 60 * 60_000) starts.shift();
+      if (playing || starts.length >= MAX_PER_HOUR) return false;
+      starts.push(now);
       playing = true;
       play(sessionId)
         .catch((err: unknown) => log.error({ err }, "sample crowd failed"))

@@ -377,7 +377,7 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
     if (!requireSeller(req, reply)) return;
     if (!deps.crowd) return reply.code(404).send({ error: "Only on the public demo" });
     if (!deps.crowd.start(req.params.id)) {
-      return reply.code(409).send({ error: "The crowd is already chatting" });
+      return reply.code(429).send({ error: "The crowd is busy; try again in a few minutes" });
     }
     return { started: true };
   });
