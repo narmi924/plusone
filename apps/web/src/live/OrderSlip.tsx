@@ -411,7 +411,6 @@ function PayAction({
           >
             Pay the PayPal invoice
           </a>
-          {quiet("The live has ended. Your items stay held until the invoice is due.")}
         </>
       ) : status.kind === "paying" ? (
         <p className="py-3 text-center text-sm font-semibold">

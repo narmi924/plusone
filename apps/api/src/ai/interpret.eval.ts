@@ -209,7 +209,7 @@ const cases: Array<[string, InterpretContext, Expect]> = [
     ctx("换成 L 码，不要多一件", { openLines: [line("L1", "A1-BLUE-M")] }),
     { intent: "change", sku: "A1-BLUE-L", targetLines: ["L1"], language: "zh" },
   ],
-  // Auto-pay on: the reply says it'll be paid, not "pay in your order panel"
+  // Auto-pay on: the reply says it'll be paid, not "pay from your parcel"
   [
     "doesn't tell an auto-pay buyer to go and pay",
     ctx("+1 blue S", { autopay: true }),
@@ -232,7 +232,9 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)("understanding live chat", () =>
     if (want.asks === true) expect(got.clarify?.options.length, summary).toBe(2);
     if (want.asks === false) expect(got.clarify, summary).toBeNull();
     if (want.noPayPrompt)
-      expect(got.reply, summary).not.toMatch(/pay in your order panel|tap pay|please pay/i);
+      expect(got.reply, summary).not.toMatch(
+        /pay (in|from|on) your (order panel|parcel)|tap pay|please pay/i,
+      );
     if (want.unavailableReply)
       expect(got.replyIfUnavailable?.length ?? 0, summary).toBeGreaterThan(0);
     if (want.language)

@@ -25,8 +25,10 @@ export function ConsoleTabs({
     <Link
       to={to}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center px-1 text-sm font-bold ${
-        active ? "text-black shadow-[inset_0_-4px_0_#000]" : "text-quiet hover:text-black"
+      className={`relative flex items-center px-1 text-sm font-bold ${
+        active
+          ? "text-black after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-black"
+          : "text-quiet hover:text-black"
       }`}
     >
       {label}
@@ -48,8 +50,10 @@ export function ConsoleTabs({
             type="button"
             onClick={chat.onToggle}
             aria-pressed={chat.open}
-            className={`flex items-center gap-1.5 px-1 text-sm font-bold ${
-              chat.open ? "text-black shadow-[inset_0_-4px_0_#000]" : "text-quiet hover:text-black"
+            className={`relative flex items-center gap-1.5 px-1 text-sm font-bold ${
+              chat.open
+                ? "text-black after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-black"
+                : "text-quiet hover:text-black"
             }`}
           >
             Chat

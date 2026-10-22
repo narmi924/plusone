@@ -30,7 +30,7 @@ const RecapSchema = z.object({
 });
 
 const INSTRUCTIONS = `You write the note a live-stream seller reads right after their live ends.
-It sits at the bottom of their order book, in their own handwriting style: short, plain, no fluff.
+It sits at the top of their table of orders: short, plain, no fluff.
 
 You get tonight's facts as JSON: orders, products with stock, waitlists, open issues, and what buyers typed in chat.
 

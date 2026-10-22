@@ -30,85 +30,85 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     holdEnded:
       "Your hold on {item} ran out, so it's back on sale. Say +1 again if you still want it.",
     freedForYou:
-      "Good news: {item} freed up and it's yours now, held for {min} min. Pay in your order panel.",
+      "Good news: {item} freed up and it's yours now, held for {min} min. Pay from your parcel.",
     refunded: "{item} is cancelled and {amount} is on its way back to your PayPal.",
     limitReached: "Sorry, it's {max} per person for {item}, and you already have yours.",
     payReminder:
-      "Friendly reminder: {item} is still held for you for {min} more min. Tap Pay in your order panel to keep it.",
+      "Friendly reminder: {item} is still held for you for {min} more min. Tap Pay on your parcel to keep it.",
     shipped: "Your order is on its way with {carrier}. Tracking number: {tracking}.",
     invoiced:
-      "The live has ended. Your {item} stays held for you until {due}. We've emailed you a PayPal invoice, or pay from your order panel.",
+      "The live has ended. Your {item} stays held for you until {due}. We've emailed you a PayPal invoice, or pay from your parcel.",
     invoicedLink:
-      "The live has ended. Your {item} stays held for you until {due}. Pay the PayPal invoice from your order panel.",
+      "The live has ended. Your {item} stays held for you until {due}. Pay the PayPal invoice from your parcel.",
     autopaid:
       "Paid {amount} with your saved PayPal (auto-pay is on). {left} left of tonight's limit. Changed your mind? Just say so.",
     autopayStopped:
-      "Auto-pay didn't pay for this one: {reason}. Tap Pay in your order panel to keep it.",
+      "Auto-pay didn't pay for this one: {reason}. Tap Pay on your parcel to keep it.",
   },
   ms: {
     holdEnded:
       "Masa simpan untuk {item} dah tamat, jadi ia dijual semula. Taip +1 lagi kalau masih nak.",
     freedForYou:
-      "Berita baik: {item} dah ada dan sekarang milik anda, disimpan {min} minit. Bayar di panel pesanan.",
+      "Berita baik: {item} dah ada dan sekarang milik anda, disimpan {min} minit. Bayar di bungkusan anda.",
     refunded: "{item} dibatalkan dan {amount} sedang dipulangkan ke PayPal anda.",
     limitReached: "Maaf, {item} dihadkan {max} seorang, dan anda dah ada.",
     payReminder:
-      "Peringatan mesra: {item} masih disimpan untuk anda {min} minit lagi. Tekan Pay di panel pesanan untuk simpan.",
+      "Peringatan mesra: {item} masih disimpan untuk anda {min} minit lagi. Tekan Pay pada bungkusan anda untuk simpan.",
     shipped: "Pesanan anda sudah dihantar melalui {carrier}. Nombor penjejakan: {tracking}.",
     invoiced:
-      "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Invois PayPal telah dihantar ke e-mel anda, atau bayar di panel pesanan.",
+      "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Invois PayPal telah dihantar ke e-mel anda, atau bayar di bungkusan anda.",
     invoicedLink:
-      "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Bayar invois PayPal di panel pesanan.",
+      "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Bayar invois PayPal di bungkusan anda.",
     autopaid:
       "Dibayar {amount} dengan PayPal tersimpan anda (bayar automatik). Baki had malam ini: {left}. Ubah fikiran? Beritahu saja.",
     autopayStopped:
-      "Bayar automatik tak bayar yang ini: {reason}. Tekan Pay di panel pesanan untuk simpan.",
+      "Bayar automatik tak bayar yang ini: {reason}. Tekan Pay pada bungkusan anda untuk simpan.",
   },
   zh: {
     holdEnded: "{item} 的保留时间到了，已重新开卖。还想要的话再发一次 +1。",
-    freedForYou: "好消息：{item} 空出来了，现在归你，保留 {min} 分钟。请在订单栏付款。",
+    freedForYou: "好消息：{item} 空出来了，现在归你，保留 {min} 分钟。在你的包裹单上付款就行。",
     refunded: "{item} 已取消，{amount} 正退回你的 PayPal。",
     limitReached: "不好意思，{item} 每人限 {max} 件，你已经拿到了。",
-    payReminder: "温馨提醒：{item} 还为你保留 {min} 分钟，在订单栏点 Pay 就能留住。",
+    payReminder: "温馨提醒：{item} 还为你保留 {min} 分钟，在包裹单上点 Pay 就能留住。",
     shipped: "你的订单已经通过 {carrier} 寄出，单号：{tracking}。",
     invoiced:
-      "直播结束了。{item} 继续为你保留到 {due}。PayPal 账单已发到你的邮箱，也可以在订单栏直接付款。",
-    invoicedLink: "直播结束了。{item} 继续为你保留到 {due}。在订单栏打开 PayPal 账单付款即可。",
+      "直播结束了。{item} 继续为你保留到 {due}。PayPal 账单已发到你的邮箱，也可以在包裹单上直接付款。",
+    invoicedLink: "直播结束了。{item} 继续为你保留到 {due}。在包裹单上打开 PayPal 账单付款即可。",
     autopaid: "已用你保存的 PayPal 自动付款 {amount}。今晚额度还剩 {left}。想改主意直接说。",
-    autopayStopped: "这次没有自动付款：{reason}。在订单栏点 Pay 就能留住。",
+    autopayStopped: "这次没有自动付款：{reason}。在包裹单上点 Pay 就能留住。",
   },
   th: {
     holdEnded: "เวลาจอง {item} หมดแล้ว สินค้ากลับมาขายใหม่ ถ้ายังต้องการพิมพ์ +1 อีกครั้งนะคะ",
-    freedForYou: "ข่าวดี: {item} ว่างแล้วและเป็นของคุณ จองไว้ {min} นาที ชำระเงินได้ที่แผงคำสั่งซื้อค่ะ",
+    freedForYou: "ข่าวดี: {item} ว่างแล้วและเป็นของคุณ จองไว้ {min} นาที ชำระเงินได้ที่พัสดุของคุณค่ะ",
     refunded: "ยกเลิก {item} แล้ว กำลังคืนเงิน {amount} เข้า PayPal ของคุณค่ะ",
     limitReached: "ขออภัย {item} จำกัดคนละ {max} ชิ้น และคุณได้ไปแล้วค่ะ",
-    payReminder: "แจ้งเตือน: {item} ยังจองไว้ให้คุณอีก {min} นาที กด Pay ที่แผงคำสั่งซื้อเพื่อเก็บไว้นะคะ",
+    payReminder: "แจ้งเตือน: {item} ยังจองไว้ให้คุณอีก {min} นาที กด Pay ที่พัสดุของคุณเพื่อเก็บไว้นะคะ",
     shipped: "ส่งของให้แล้วผ่าน {carrier} เลขพัสดุ: {tracking}",
     invoiced:
-      "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} เราส่งใบแจ้งหนี้ PayPal ไปที่อีเมลแล้ว หรือชำระที่แผงคำสั่งซื้อได้เลยค่ะ",
-    invoicedLink: "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} ชำระใบแจ้งหนี้ PayPal ได้ที่แผงคำสั่งซื้อค่ะ",
+      "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} เราส่งใบแจ้งหนี้ PayPal ไปที่อีเมลแล้ว หรือชำระที่พัสดุของคุณได้เลยค่ะ",
+    invoicedLink: "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} ชำระใบแจ้งหนี้ PayPal ได้ที่พัสดุของคุณค่ะ",
     autopaid:
       "ชำระ {amount} ด้วย PayPal ที่บันทึกไว้แล้ว (จ่ายอัตโนมัติ) วงเงินคืนนี้เหลือ {left} เปลี่ยนใจบอกได้เลยค่ะ",
-    autopayStopped: "จ่ายอัตโนมัติไม่ได้ชำระรายการนี้: {reason} กด Pay ที่แผงคำสั่งซื้อเพื่อเก็บไว้นะคะ",
+    autopayStopped: "จ่ายอัตโนมัติไม่ได้ชำระรายการนี้: {reason} กด Pay ที่พัสดุของคุณเพื่อเก็บไว้นะคะ",
   },
   id: {
     holdEnded:
       "Waktu simpan untuk {item} sudah habis, jadi dijual lagi. Ketik +1 lagi kalau masih mau.",
     freedForYou:
-      "Kabar baik: {item} tersedia dan sekarang milikmu, disimpan {min} menit. Bayar di panel pesanan.",
+      "Kabar baik: {item} tersedia dan sekarang milikmu, disimpan {min} menit. Bayar di paketmu.",
     refunded: "{item} dibatalkan dan {amount} sedang dikembalikan ke PayPal-mu.",
     limitReached: "Maaf, {item} dibatasi {max} per orang, dan kamu sudah dapat.",
     payReminder:
-      "Pengingat: {item} masih disimpan untukmu {min} menit lagi. Ketuk Pay di panel pesanan supaya tidak hilang.",
+      "Pengingat: {item} masih disimpan untukmu {min} menit lagi. Ketuk Pay di paketmu supaya tidak hilang.",
     shipped: "Pesananmu sudah dikirim lewat {carrier}. Nomor resi: {tracking}.",
     invoiced:
-      "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Tagihan PayPal sudah dikirim ke emailmu, atau bayar di panel pesanan.",
+      "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Tagihan PayPal sudah dikirim ke emailmu, atau bayar di paketmu.",
     invoicedLink:
-      "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Bayar tagihan PayPal dari panel pesanan.",
+      "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Bayar tagihan PayPal dari paketmu.",
     autopaid:
       "Sudah dibayar {amount} dengan PayPal tersimpanmu (bayar otomatis). Sisa limit malam ini: {left}. Berubah pikiran? Bilang saja.",
     autopayStopped:
-      "Bayar otomatis tidak membayar yang ini: {reason}. Ketuk Pay di panel pesanan supaya tidak hilang.",
+      "Bayar otomatis tidak membayar yang ini: {reason}. Ketuk Pay di paketmu supaya tidak hilang.",
   },
 };
 
