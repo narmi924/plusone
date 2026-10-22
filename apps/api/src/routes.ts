@@ -18,6 +18,7 @@ import {
   newBuyerToken,
   sellerTokenFor,
 } from "./lib/auth.js";
+import type { Guards } from "./lib/limits.js";
 import type { LiveKit } from "./livekit.js";
 import type { PayPal } from "./paypal/client.js";
 import type { Invoicing } from "./paypal/invoicing.js";
@@ -57,6 +58,8 @@ interface Deps {
   copilot: Copilot | null;
   /** Public demo only: a busy minute of buyers, played on request. */
   crowd: SampleCrowd | null;
+  /** Per-visitor limits and the demo's AI budget. */
+  guards: Guards;
   webhookId: () => string | null;
 }
 
@@ -146,6 +149,8 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
   // --- Buyers ---
 
   app.post("/api/buyers", async (req, reply) => {
+    if (!deps.guards.join(req.ip))
+      return reply.code(429).send({ error: "Too many people joined from here. Try again soon." });
     const parsed = JoinBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Enter your name" });
     const { token, tokenHash } = newBuyerToken();
@@ -306,6 +311,8 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       const frame = req.body?.frame;
       if (typeof frame !== "string" || frame.length < 100 || frame.length > 900_000)
         return reply.code(400).send({ error: "Send one JPEG frame, base64" });
+      if (!deps.guards.look(req.ip) || !deps.guards.vision("all"))
+        return reply.code(429).send({ error: "PlusOne needs a short break from watching." });
       return deps.hostWatch.frame(req.params.id, frame);
     },
   );
@@ -463,8 +470,11 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       .trim()
       .slice(0, 600);
     if (!message) return reply.code(400).send({ error: "Ask something" });
+    if (!deps.guards.ask(req.ip) || !deps.guards.ai("all"))
+      return reply.code(429).send({ error: "PlusOne needs a short break. Try again soon." });
     const history = (req.body?.history ?? [])
       .filter((h) => (h.role === "user" || h.role === "assistant") && typeof h.text === "string")
+      .slice(-6)
       .map((h) => ({ role: h.role, text: h.text.slice(0, 2000) }));
     reply.hijack();
     const out = reply.raw;

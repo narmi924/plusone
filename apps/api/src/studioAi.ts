@@ -129,17 +129,23 @@ function toAnthropic(req: AgLlmRequest) {
 export function studioAiRoute(deps: {
   apiKey: string;
   isSeller: (token: string | undefined) => boolean;
+  /** Per-visitor and demo-wide limits on assistant turns. */
+  allow: (ip: string) => boolean;
 }) {
   const client = new Anthropic({ apiKey: deps.apiKey, timeout: 120_000, maxRetries: 2 });
   return async (app: FastifyInstance) => {
     app.post<{ Body: AgLlmRequest }>(
       "/api/studio-ai/turn",
-      { bodyLimit: 10 * 1024 * 1024 },
+      { bodyLimit: 2 * 1024 * 1024 },
       async (request, reply) => {
         const token = request.headers["x-seller-token"];
         if (!deps.isSeller(typeof token === "string" ? token : undefined)) {
           return reply.code(401).send({ error: "Seller sign-in required" });
         }
+        if (!deps.allow(request.ip))
+          return reply
+            .code(429)
+            .send({ error: "The assistant needs a short break. Try again soon." });
         const req = request.body;
         const { system, messages, tools, tool_choice } = toAnthropic(req);
 
@@ -165,7 +171,7 @@ export function studioAiRoute(deps: {
           const stream = client.beta.messages.stream(
             {
               model: MODEL,
-              max_tokens: 32000,
+              max_tokens: 8000,
               cache_control: { type: "ephemeral" }, // Studio resends the whole history every turn
               system,
               messages,

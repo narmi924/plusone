@@ -41,6 +41,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment:\n${issues}`);
   }
+  // The public demo shows its passwords on the page: it only ever runs on PayPal Sandbox.
+  if (result.data.DEMO_MODE && result.data.PAYPAL_ENV === "live")
+    throw new Error("DEMO_MODE runs on PayPal sandbox only; set PAYPAL_ENV=sandbox");
   return result.data;
 }
 

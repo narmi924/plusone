@@ -13,6 +13,7 @@ import type { Db } from "./db/client.js";
 import type { buyers } from "./db/schema.js";
 import type { Env } from "./env.js";
 import { buyerFromToken, isSellerToken } from "./lib/auth.js";
+import { clientIp, type Guards } from "./lib/limits.js";
 import { getSessionRow } from "./services/catalog.js";
 import type { SpeechRelay } from "./speech.js";
 
@@ -38,7 +39,7 @@ const sellerRoom = (sessionId: string) => `seller:${sessionId}`;
 
 export function createRealtime(
   httpServer: HttpServer,
-  deps: { db: Db; env: Env; log: FastifyBaseLogger },
+  deps: { db: Db; env: Env; log: FastifyBaseLogger; guards: Guards },
 ) {
   const io = new Server<
     ClientToServerEvents,
@@ -109,6 +110,10 @@ export function createRealtime(
       if (!buyer) return ack({ ok: false, error: "Join the live first" });
       if (!body) return ack({ ok: false, error: "Empty message" });
       if (tooFast(buyer.id)) return ack({ ok: false, error: "Slow down a little, then try again" });
+      if (!deps.guards.chat(clientIp(socket.handshake.headers, socket.handshake.address)))
+        return ack({ ok: false, error: "Lots of messages from here. Give it a minute." });
+      if (!deps.guards.ai("all"))
+        return ack({ ok: false, error: "PlusOne is very busy right now. Try again in a minute." });
       if (!chatHandler) return ack({ ok: false, error: "Not ready" });
       try {
         ack({ ok: true, data: await chatHandler({ sessionId, buyer, body }) });

@@ -20,6 +20,7 @@ import { listenForPushes } from "./jobs/relay.js";
 import { createJobs } from "./jobs/runner.js";
 import { provideJobDeps, remindToPay, writeRecap } from "./jobs/tasks.js";
 import { isSellerToken } from "./lib/auth.js";
+import { createGuards } from "./lib/limits.js";
 import { createLiveKit } from "./livekit.js";
 import { createPayPal } from "./paypal/client.js";
 import { createInvoicing } from "./paypal/invoicing.js";
@@ -40,7 +41,11 @@ import { studioAiRoute } from "./studioAi.js";
 
 const env = loadEnv();
 
+const guards = createGuards(env.DEMO_MODE);
+
 const app = Fastify({
+  // Behind Render's proxy: the visitor's address comes from X-Forwarded-For.
+  trustProxy: true,
   logger:
     process.env.NODE_ENV === "production"
       ? true
@@ -59,7 +64,7 @@ if ((await db.select({ id: sellers.id }).from(sellers).limit(1)).length === 0) {
   app.log.info("empty database: seeded the demo shop");
 }
 
-const realtime = createRealtime(app.server, { db, env, log: app.log });
+const realtime = createRealtime(app.server, { db, env, log: app.log, guards });
 
 // Background tasks: Render Workflows runs in production, in-process locally.
 // Either way their pushes come back through Postgres.
@@ -204,6 +209,7 @@ await registerRoutes(app, {
   notify,
   jobs,
   crowd,
+  guards,
   copilot: env.ANTHROPIC_API_KEY
     ? createCopilot({
         apiKey: env.ANTHROPIC_API_KEY,
@@ -230,6 +236,7 @@ if (env.ANTHROPIC_API_KEY) {
     studioAiRoute({
       apiKey: env.ANTHROPIC_API_KEY,
       isSeller: (token) => isSellerToken(env.SELLER_PASSWORD, token),
+      allow: (ip) => guards.ask(ip) && guards.ai("all"),
     }),
   );
 }
