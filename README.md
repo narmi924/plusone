@@ -82,7 +82,7 @@ Claude (Opus 5.5) does the understanding; code does the money.
 - **After the live**: Claude reads the night's orders, stock and chat and leaves the seller a short to-do list.
 - **Ask PlusOne**: Claude with tool use over tonight's orders and the PayPal Agent Toolkit's tools; the host can also ask it out loud ("Hey PlusOne, ...") while selling.
 - **Report assistant**: AG Studio's agents run on Claude through the server, with one extra tool that sends payment reminders.
-- Evals in `apps/api/src/ai/*.eval.ts` (23 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
+- Evals in `apps/api/src/ai/*.eval.ts` (24 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
 
 ![After the live: the recap at the top of the seller's table, and an invoiced order](docs/images/after-live.jpg)
 
