@@ -93,9 +93,11 @@ describe("auto-pay", () => {
       startAutopay({ db, payments, notify, log, everyMs: 10 }),
       startAutopay({ db, payments, notify, log, everyMs: 10 }),
     ];
-    await new Promise((r) => setTimeout(r, 400));
+    const forThisOrder = () => payWithSaved.mock.calls.filter((c) => c[0] === order.id);
+    await vi.waitFor(() => expect(forThisOrder().length).toBeGreaterThan(0), { timeout: 5000 });
+    // Let both sweepers keep going for a while: still only the one charge.
+    await new Promise((r) => setTimeout(r, 300));
     for (const stop of stops) stop();
-    const forThisOrder = payWithSaved.mock.calls.filter((c) => c[0] === order.id);
-    expect(forThisOrder).toHaveLength(1);
+    expect(forThisOrder()).toHaveLength(1);
   });
 });
