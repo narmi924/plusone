@@ -402,16 +402,14 @@ function PayAction({
   return (
     <div className="mt-4">
       {invoice ? (
-        <>
-          <a
-            href={invoice.payUrl ?? undefined}
-            target="_blank"
-            rel="noreferrer"
-            className="block rounded-full bg-[#ffc439] py-3.5 text-center text-[15px] font-bold text-black hover:brightness-95"
-          >
-            Pay the PayPal invoice
-          </a>
-        </>
+        <a
+          href={invoice.payUrl ?? undefined}
+          target="_blank"
+          rel="noreferrer"
+          className="block rounded-full bg-[#ffc439] py-3.5 text-center text-[15px] font-bold text-black hover:brightness-95"
+        >
+          Pay the PayPal invoice
+        </a>
       ) : status.kind === "paying" ? (
         <p className="py-3 text-center text-sm font-semibold">
           {status.text ?? "Confirming your payment with PayPal…"}
