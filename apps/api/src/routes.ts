@@ -24,6 +24,7 @@ import { CARRIERS, type CarrierKey, PaymentError, type Payments } from "./paypal
 import { verifyWebhook, WEBHOOK_PATH } from "./paypal/webhooks.js";
 import type { Realtime } from "./realtime.js";
 import { listAttention, resolveAttention } from "./services/attention.js";
+import { AUTOPAY_LIMITS, getWallet, reArm, setAutopay } from "./services/autopay.js";
 import {
   findSessionForHandle,
   getSessionDTO,
@@ -171,15 +172,70 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
     throw err;
   };
 
-  app.post<{ Params: { id: string } }>("/api/orders/:id/paypal", async (req, reply) => {
+  app.post<{ Params: { id: string }; Body: { save?: unknown } | null }>(
+    "/api/orders/:id/paypal",
+    async (req, reply) => {
+      const buyer = await requireBuyer(req, reply);
+      if (!buyer) return;
+      if (!deps.payments) return reply.code(503).send({ error: "PayPal is not configured" });
+      try {
+        const site = req.headers.origin || env.PUBLIC_URL || "http://localhost:5174";
+        return await deps.payments.createForOrder(req.params.id, buyer.id, {
+          save: req.body?.save === true,
+          returnUrl: `${site}/live`,
+        });
+      } catch (err) {
+        return sendPaymentError(reply, err);
+      }
+    },
+  );
+
+  // One tap with the PayPal the buyer saved at an earlier checkout.
+  app.post<{ Params: { id: string } }>("/api/orders/:id/pay-saved", async (req, reply) => {
     const buyer = await requireBuyer(req, reply);
     if (!buyer) return;
     if (!deps.payments) return reply.code(503).send({ error: "PayPal is not configured" });
     try {
-      return await deps.payments.createForOrder(req.params.id, buyer.id);
+      return await deps.payments.payWithSaved(req.params.id, buyer.id, "saved");
     } catch (err) {
       return sendPaymentError(reply, err);
     }
+  });
+
+  app.get<{ Params: { id: string } }>("/api/sessions/:id/wallet", async (req, reply) => {
+    const buyer = await requireBuyer(req, reply);
+    if (!buyer) return;
+    return getWallet(db, buyer.id, req.params.id);
+  });
+
+  app.put<{ Params: { id: string }; Body: { limitCents?: unknown } | null }>(
+    "/api/sessions/:id/autopay",
+    async (req, reply) => {
+      const buyer = await requireBuyer(req, reply);
+      if (!buyer) return;
+      const limit = req.body?.limitCents ?? null;
+      if (limit !== null && !AUTOPAY_LIMITS.includes(limit as (typeof AUTOPAY_LIMITS)[number]))
+        return reply.code(400).send({ error: "Pick one of the limits" });
+      try {
+        await setAutopay(db, deps.notify, {
+          buyerId: buyer.id,
+          sessionId: req.params.id,
+          limitCents: limit as number | null,
+        });
+        return getWallet(db, buyer.id, req.params.id);
+      } catch (err) {
+        return sendPaymentError(reply, err);
+      }
+    },
+  );
+
+  app.delete("/api/me/paypal", async (req, reply) => {
+    const buyer = await requireBuyer(req, reply);
+    if (!buyer) return;
+    if (!deps.payments) return reply.code(503).send({ error: "PayPal is not configured" });
+    await deps.payments.forgetSaved(buyer.id);
+    await reArm(db, deps.notify, buyer.id);
+    return { savedPayPal: null, autopay: null };
   });
 
   app.post<{ Params: { paypalOrderId: string } }>(

@@ -81,6 +81,8 @@ export interface InterpretContext {
   onScreen: { code: string; name: string; sinceSeconds: number } | null;
   shownBefore: { code: string; name: string } | null;
   buyerName: string;
+  /** Their saved PayPal pays for what they say, a few seconds after the order changes. */
+  autopay?: boolean;
   /** Oldest first, not including the message being interpreted. */
   recentMessages: Array<{ secondsAgo: number; body: string }>;
   openLines: Array<{ ref: string; sku: string; name: string; qty: number; status: string }>;
@@ -214,7 +216,7 @@ ${recent}
 Their current order lines:
 ${lines}
 Items they are waiting for:
-${waits}
+${waits}${ctx.autopay ? "\nAuto-pay is on for them: their saved PayPal pays a few seconds after their order changes. Don't tell them to pay; say it'll be paid automatically." : ""}
 </buyer>
 <message>
 ${ctx.message}

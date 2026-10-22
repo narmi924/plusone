@@ -1,0 +1,1 @@
+ALTER TABLE "buyers" ADD COLUMN "paypal_shipping" jsonb;

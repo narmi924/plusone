@@ -26,6 +26,7 @@ import { ensureWebhook } from "./paypal/webhooks.js";
 import { createChatPipeline } from "./pipeline.js";
 import { createRealtime } from "./realtime.js";
 import { registerRoutes } from "./routes.js";
+import { startAutopay } from "./services/autopay.js";
 import { toMessageDTO } from "./services/chat.js";
 import { createSampleCrowd } from "./services/crowd.js";
 import { startDemoHost, startDemoKeeper } from "./services/demo.js";
@@ -156,6 +157,10 @@ const stopSweeper = startHoldSweeper({
   },
 });
 
+const stopAutopay = payments
+  ? startAutopay({ db, payments, notify, log: app.log })
+  : () => undefined;
+
 const stopDemoKeeper = env.DEMO_MODE
   ? startDemoKeeper({ db, log: app.log, onReset: () => realtime.io.disconnectSockets() })
   : () => undefined;
@@ -224,6 +229,7 @@ if (existsSync(webDist)) {
 
 app.addHook("onClose", async () => {
   stopSweeper();
+  stopAutopay();
   stopDemoKeeper();
   stopDemoHost();
   await stopPushes();

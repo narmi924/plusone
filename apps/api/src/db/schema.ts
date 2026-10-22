@@ -1,8 +1,10 @@
+import type { ShippingDetails } from "@paypal/paypal-server-sdk";
 import type {
   AuthorKind,
   ChatOption,
   LineStatus,
   OrderStatus,
+  PaidVia,
   RecapDTO,
   SessionStatus,
 } from "@plusone/shared";
@@ -128,6 +130,15 @@ export const buyers = pgTable("buyers", {
   email: text().notNull(),
   tokenHash: text().notNull().unique(),
   locale: text(),
+  /** PayPal saved with the buyer's consent at checkout (Vault), for one-tap payment next time. */
+  paypalVaultId: text(),
+  paypalCustomerId: text(),
+  paypalEmail: text(),
+  /** Where that PayPal checkout said to ship, reused for one-tap payments. */
+  paypalShipping: jsonb().$type<ShippingDetails>(),
+  /** Auto-pay is on for this one live, up to this much. */
+  autopaySessionId: uuid(),
+  autopayLimitCents: integer(),
   createdAt: createdAt(),
   lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
@@ -187,6 +198,8 @@ export const orders = pgTable(
     shippedAt: timestamp({ withTimezone: true }),
     /** Set when this order goes in the same parcel as an earlier paid one (no second shipping fee). */
     shipsWithOrderId: uuid(),
+    /** Auto-pay charges the saved PayPal at this time, unless the order changes first. */
+    autopayAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -332,6 +345,8 @@ export const payments = pgTable(
     currency: text().notNull(),
     /** Order lines this PayPal order pays for, fixed when it was created. */
     lineIds: jsonb().$type<string[]>().notNull(),
+    /** How the buyer paid: PayPal checkout, saved PayPal in one tap, auto-pay, or an invoice. */
+    via: text().$type<PaidVia>().notNull().default("checkout"),
     payerEmail: text(),
     raw: jsonb(),
     createdAt: createdAt(),

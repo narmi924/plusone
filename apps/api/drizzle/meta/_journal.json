@@ -36,6 +36,20 @@
       "when": 1792536896982,
       "tag": "0004_session_recap",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792662928826,
+      "tag": "0005_buyer_wallet",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792663806985,
+      "tag": "0006_buyer_ship_to",
+      "breakpoints": true
     }
   ]
 }

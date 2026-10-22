@@ -99,6 +99,13 @@ body {
   border-radius: 999px;
   transition: width 1s linear;
 }
+/* On black: the auto-pay countdown. */
+.drain.on-dark {
+  background: rgb(255 255 255 / 0.22);
+}
+.drain.on-dark > i {
+  background: var(--color-sticker);
+}
 
 /* Red and white packing tape: what only the seller can decide. */
 .tape {

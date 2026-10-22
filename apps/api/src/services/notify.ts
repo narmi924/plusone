@@ -20,7 +20,9 @@ type Template =
   | "limitReached"
   | "payReminder"
   | "shipped"
-  | "invoiced";
+  | "invoiced"
+  | "autopaid"
+  | "autopayStopped";
 
 const TEMPLATES: Record<string, Record<Template, string>> = {
   en: {
@@ -35,6 +37,10 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     shipped: "Your order is on its way with {carrier}. Tracking number: {tracking}.",
     invoiced:
       "The live has ended. Your {item} stays held for you until {due}. We've emailed you a PayPal invoice, or pay from your order panel.",
+    autopaid:
+      "Paid {amount} with your saved PayPal (auto-pay is on). {left} left of tonight's limit. Changed your mind? Just say so.",
+    autopayStopped:
+      "Auto-pay didn't pay for this one: {reason}. Tap Pay in your order panel to keep it.",
   },
   ms: {
     holdEnded:
@@ -48,6 +54,10 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     shipped: "Pesanan anda sudah dihantar melalui {carrier}. Nombor penjejakan: {tracking}.",
     invoiced:
       "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Invois PayPal telah dihantar ke e-mel anda, atau bayar di panel pesanan.",
+    autopaid:
+      "Dibayar {amount} dengan PayPal tersimpan anda (bayar automatik). Baki had malam ini: {left}. Ubah fikiran? Beritahu saja.",
+    autopayStopped:
+      "Bayar automatik tak bayar yang ini: {reason}. Tekan Pay di panel pesanan untuk simpan.",
   },
   zh: {
     holdEnded: "{item} 的保留时间到了，已重新开卖。还想要的话再发一次 +1。",
@@ -58,6 +68,8 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     shipped: "你的订单已经通过 {carrier} 寄出，单号：{tracking}。",
     invoiced:
       "直播结束了。{item} 继续为你保留到 {due}。PayPal 账单已发到你的邮箱，也可以在订单栏直接付款。",
+    autopaid: "已用你保存的 PayPal 自动付款 {amount}。今晚额度还剩 {left}。想改主意直接说。",
+    autopayStopped: "这次没有自动付款：{reason}。在订单栏点 Pay 就能留住。",
   },
   th: {
     holdEnded: "เวลาจอง {item} หมดแล้ว สินค้ากลับมาขายใหม่ ถ้ายังต้องการพิมพ์ +1 อีกครั้งนะคะ",
@@ -68,6 +80,9 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     shipped: "ส่งของให้แล้วผ่าน {carrier} เลขพัสดุ: {tracking}",
     invoiced:
       "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} เราส่งใบแจ้งหนี้ PayPal ไปที่อีเมลแล้ว หรือชำระที่แผงคำสั่งซื้อได้เลยค่ะ",
+    autopaid:
+      "ชำระ {amount} ด้วย PayPal ที่บันทึกไว้แล้ว (จ่ายอัตโนมัติ) วงเงินคืนนี้เหลือ {left} เปลี่ยนใจบอกได้เลยค่ะ",
+    autopayStopped: "จ่ายอัตโนมัติไม่ได้ชำระรายการนี้: {reason} กด Pay ที่แผงคำสั่งซื้อเพื่อเก็บไว้นะคะ",
   },
   id: {
     holdEnded:
@@ -81,6 +96,10 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     shipped: "Pesananmu sudah dikirim lewat {carrier}. Nomor resi: {tracking}.",
     invoiced:
       "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Tagihan PayPal sudah dikirim ke emailmu, atau bayar di panel pesanan.",
+    autopaid:
+      "Sudah dibayar {amount} dengan PayPal tersimpanmu (bayar otomatis). Sisa limit malam ini: {left}. Berubah pikiran? Bilang saja.",
+    autopayStopped:
+      "Bayar otomatis tidak membayar yang ini: {reason}. Ketuk Pay di panel pesanan supaya tidak hilang.",
   },
 };
 

@@ -2,11 +2,12 @@ import {
   type OnApproveDataOneTimePayments,
   PayPalOneTimePaymentButton,
 } from "@paypal/react-paypal-js/sdk-v6";
-import { formatMoney, type OrderDTO, type SessionDTO } from "@plusone/shared";
-import { type ReactNode, useEffect, useState } from "react";
+import { formatMoney, type OrderDTO, type SessionDTO, type WalletDTO } from "@plusone/shared";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { swatchStyle } from "../lib/swatch";
 import { useLive } from "../lib/useLiveRoom";
+import { AUTOPAY_SECONDS, AutoPay, useWallet } from "./Wallet";
 
 // The buyer's side panel: their order as the shipping label it will become.
 // From the shop, to them, what's in it with a colour swatch per line, the
@@ -78,6 +79,7 @@ export function OrderPanel({
   const open = orders.filter((o) => o.status === "reserved");
   const done = orders.filter((o) => o.status === "paid" || o.status === "shipped");
   const empty = open.length === 0 && done.length === 0;
+  const [wallet, setWallet] = useWallet(session.id, buyerToken, orders);
 
   return (
     <div className="kraft flex min-h-full flex-col gap-4 px-5 py-7 sm:px-7">
@@ -100,11 +102,28 @@ export function OrderPanel({
             buyerToken={buyerToken}
             paypalReady={paypalReady}
             sandboxBuyer={sandboxBuyer}
+            wallet={wallet}
+            onWallet={setWallet}
           />
         ))}
-      {done.map((o) => (
-        <PaidOrder key={o.id} order={o} shop={session.seller.name} />
-      ))}
+      {done.map((o, i) =>
+        // Only the newest paid label in full while nothing is held; older ones fold
+        // into a stub so the order being paid stays in view.
+        open.length === 0 && i === 0 ? (
+          <PaidOrder key={o.id} order={o} shop={session.seller.name} />
+        ) : (
+          <PaidStub key={o.id} order={o} shop={session.seller.name} />
+        ),
+      )}
+      {buyerToken && wallet && !ended && (
+        <AutoPay
+          sessionId={session.id}
+          buyerToken={buyerToken}
+          wallet={wallet}
+          currency={session.seller.currency}
+          onChange={setWallet}
+        />
+      )}
       {!ended && <Deals session={session} orders={orders} onAdd={buyerToken ? onAdd : null} />}
     </div>
   );
@@ -219,6 +238,8 @@ function HeldOrder({
   buyerToken,
   paypalReady,
   sandboxBuyer,
+  wallet,
+  onWallet,
 }: {
   order: OrderDTO;
   shop: string;
@@ -226,15 +247,42 @@ function HeldOrder({
   buyerToken: string;
   paypalReady: boolean;
   sandboxBuyer: { email: string; password: string } | null;
+  wallet: WalletDTO | null;
+  onWallet: (w: WalletDTO) => void;
 }) {
-  const now = useNow();
+  const now = useNow(250);
   const upsertOrder = useLive((s) => s.upsertOrder);
   const [status, setStatus] = useState<{ kind: "idle" | "paying" | "error"; text?: string }>({
     kind: "idle",
   });
+  // PayPal asks the buyer to agree to saving on its own page; this only asks for it.
+  const [save, setSave] = useState(true);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const [otherWay, setOtherWay] = useState(false);
+  // A new hold scrolls into view, above the labels already paid.
+  const here = useRef<HTMLElement>(null);
+  useEffect(() => {
+    here.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
   const expired = order.holdExpiresAt ? new Date(order.holdExpiresAt).getTime() <= now : false;
   // After the live ends, unpaid holds become a PayPal invoice with its own due date.
   const invoice = order.invoice?.status === "sent" ? order.invoice : null;
+  const saved = wallet?.savedPayPal ?? null;
+  // Auto-pay is counting down: the saved PayPal pays when it reaches zero.
+  const autopayAt = wallet?.autopay && order.autopayAt ? Date.parse(order.autopayAt) : null;
+  const autopayLeft = autopayAt ? Math.max(0, autopayAt - now) : null;
+
+  const failed = (err: unknown) =>
+    setStatus({
+      kind: "error",
+      text:
+        err instanceof ApiError && err.status === 422
+          ? "PayPal declined that payment. Try again with another card or account."
+          : err instanceof Error
+            ? err.message
+            : String(err),
+    });
 
   async function onApprove(data: OnApproveDataOneTimePayments) {
     setStatus({ kind: "paying" });
@@ -242,20 +290,30 @@ function HeldOrder({
       upsertOrder(await api.capturePayPal(data.orderId, buyerToken));
       setStatus({ kind: "idle" });
     } catch (err) {
-      setStatus({
-        kind: "error",
-        text:
-          err instanceof ApiError && err.status === 422
-            ? "PayPal declined that payment. Try again with another card or account."
-            : err instanceof Error
-              ? err.message
-              : String(err),
-      });
+      failed(err);
+    }
+  }
+
+  async function paySaved() {
+    setStatus({ kind: "paying", text: "Paying with your saved PayPal…" });
+    try {
+      upsertOrder(await api.paySaved(order.id, buyerToken));
+      setStatus({ kind: "idle" });
+    } catch (err) {
+      failed(err);
+    }
+  }
+
+  async function payMyself() {
+    try {
+      onWallet(await api.setAutopay(order.sessionId, null, buyerToken));
+    } catch (err) {
+      failed(err);
     }
   }
 
   return (
-    <section aria-label="Held for you">
+    <section ref={here} aria-label="Held for you" className="scroll-mt-6">
       <div className="label">
         <Head shop={shop} number={order.number} date={liveDate(order.createdAt)} />
         <To name={order.buyer.name} note="Your address comes from PayPal when you pay" />
@@ -264,27 +322,43 @@ function HeldOrder({
           <Totals order={order} />
         </div>
         <TotalRow order={order} />
-        <div className="zone bg-sticker px-3.5 py-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <b className="sort text-[30px]">
-              {invoice
-                ? `Due ${dueLabel(invoice.dueAt)}`
-                : expired
-                  ? "Hold ended"
-                  : order.holdExpiresAt
-                    ? `Held ${countdown(order.holdExpiresAt, now)}`
-                    : "Held"}
-            </b>
-            <span className="text-right text-[13px] font-semibold">
-              {invoice ? "pay the invoice to keep it" : "then it goes back on sale"}
-            </span>
-          </div>
-          {!invoice && (
-            <div className="drain mt-2 h-2">
-              <i style={{ width: `${holdLeft(order.holdExpiresAt, holdMinutes, now) * 100}%` }} />
+        {autopayLeft !== null ? (
+          <div className="zone bg-black px-3.5 py-3 text-white">
+            <div className="flex items-baseline justify-between gap-3">
+              <b className="sort text-[30px]">
+                {autopayLeft > 0 ? `Auto-pay in ${Math.ceil(autopayLeft / 1000)}s` : "Paying…"}
+              </b>
+              <span className="text-right text-[13px] font-semibold">with your saved PayPal</span>
             </div>
-          )}
-        </div>
+            <div className="drain on-dark mt-2 h-2">
+              <i
+                style={{ width: `${Math.min(1, autopayLeft / (AUTOPAY_SECONDS * 1000)) * 100}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="zone bg-sticker px-3.5 py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <b className="sort text-[30px]">
+                {invoice
+                  ? `Due ${dueLabel(invoice.dueAt)}`
+                  : expired
+                    ? "Hold ended"
+                    : order.holdExpiresAt
+                      ? `Held ${countdown(order.holdExpiresAt, now)}`
+                      : "Held"}
+              </b>
+              <span className="text-right text-[13px] font-semibold">
+                {invoice ? "pay the invoice to keep it" : "then it goes back on sale"}
+              </span>
+            </div>
+            {!invoice && (
+              <div className="drain mt-2 h-2">
+                <i style={{ width: `${holdLeft(order.holdExpiresAt, holdMinutes, now) * 100}%` }} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-4 min-h-12">
@@ -305,23 +379,73 @@ function HeldOrder({
           </>
         ) : status.kind === "paying" ? (
           <p className="py-3 text-center text-sm font-semibold">
-            Confirming your payment with PayPal…
+            {status.text ?? "Confirming your payment with PayPal…"}
           </p>
+        ) : autopayLeft !== null ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-center text-sm leading-snug">
+              Changing something? Just say it in the chat; the countdown starts again.
+            </p>
+            <button
+              type="button"
+              onClick={() => void payMyself()}
+              className="rounded-full border-2 border-black bg-label py-2.5 text-sm font-bold"
+            >
+              Stop auto-pay, I'll pay myself
+            </button>
+          </div>
+        ) : saved && !otherWay ? (
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void paySaved()}
+              className="w-full rounded-full bg-[#ffc439] py-3.5 text-[15px] font-bold text-black hover:brightness-95"
+            >
+              Pay {formatMoney(order.totalCents, order.currency)} with saved PayPal
+            </button>
+            <p className="text-xs text-black/70">
+              {saved}. One tap, no PayPal window.{" "}
+              <button
+                type="button"
+                onClick={() => setOtherWay(true)}
+                className="font-semibold underline decoration-dotted underline-offset-2"
+              >
+                Pay another way
+              </button>
+            </p>
+          </div>
         ) : paypalReady ? (
-          <PayPalOneTimePaymentButton
-            type="pay"
-            presentationMode="auto"
-            createOrder={async () => {
-              setStatus({ kind: "idle" });
-              const { paypalOrderId } = await api.startPayPal(order.id, buyerToken);
-              return { orderId: paypalOrderId };
-            }}
-            onApprove={onApprove}
-            onCancel={() => setStatus({ kind: "idle" })}
-            onError={(e) =>
-              setStatus({ kind: "error", text: e.message || "PayPal couldn't start. Try again." })
-            }
-          />
+          <>
+            <PayPalOneTimePaymentButton
+              type="pay"
+              presentationMode="auto"
+              createOrder={async () => {
+                setStatus({ kind: "idle" });
+                const { paypalOrderId } = await api.startPayPal(
+                  order.id,
+                  buyerToken,
+                  !saved && saveRef.current,
+                );
+                return { orderId: paypalOrderId };
+              }}
+              onApprove={onApprove}
+              onCancel={() => setStatus({ kind: "idle" })}
+              onError={(e) =>
+                setStatus({ kind: "error", text: e.message || "PayPal couldn't start. Try again." })
+              }
+            />
+            {!saved && (
+              <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[13px] font-semibold">
+                <input
+                  type="checkbox"
+                  checked={save}
+                  onChange={(e) => setSave(e.target.checked)}
+                  className="size-4 accent-black"
+                />
+                Save my PayPal for one-tap next time
+              </label>
+            )}
+          </>
         ) : (
           <p className="py-3 text-center text-sm text-black/70">Loading PayPal…</p>
         )}
@@ -331,7 +455,9 @@ function HeldOrder({
           {status.text}
         </p>
       )}
-      {sandboxBuyer && <SandboxLogin {...sandboxBuyer} />}
+      {sandboxBuyer && (!saved || otherWay) && autopayLeft === null && (
+        <SandboxLogin {...sandboxBuyer} />
+      )}
     </section>
   );
 }
@@ -367,6 +493,44 @@ function SandboxLogin({ email, password }: { email: string; password: string }) 
   );
 }
 
+const PAID_VIA: Record<NonNullable<OrderDTO["paidVia"]>, string> = {
+  checkout: "with PayPal",
+  saved: "with saved PayPal",
+  auto: "auto-paid with PayPal",
+  invoice: "PayPal invoice",
+};
+
+/** A paid label folded to one line: number, what's in it, PAID. Tap to unfold. */
+function PaidStub({ order, shop }: { order: OrderDTO; shop: string }) {
+  const [unfolded, setUnfolded] = useState(false);
+  if (unfolded) return <PaidOrder order={order} shop={shop} />;
+  const items = order.lines
+    .filter((l) => l.status === "paid")
+    .map((l) => [l.productName, option(l)].filter(Boolean).join(", "))
+    .join("; ");
+  return (
+    <button
+      type="button"
+      onClick={() => setUnfolded(true)}
+      aria-label={`Order ${order.number}, ${order.status}`}
+      className="label grid grid-cols-[56px_1fr_auto] items-stretch text-left"
+    >
+      <span className="sort grid place-items-center border-r-[1.5px] border-black text-[30px]">
+        {sortNumber(order.number)}
+      </span>
+      <span className="min-w-0 px-3 py-2">
+        <b className="block truncate text-sm font-extrabold">{items}</b>
+        <small className="text-xs text-quiet">
+          {formatMoney(order.totalCents, order.currency)}, {PAID_VIA[order.paidVia ?? "checkout"]}
+        </small>
+      </span>
+      <b className="sort grid place-items-center bg-black px-3.5 text-[20px] text-white">
+        {order.status === "shipped" ? "SHIPPED" : "PAID"}
+      </b>
+    </button>
+  );
+}
+
 function PaidOrder({ order, shop }: { order: OrderDTO; shop: string }) {
   const shipped = order.status === "shipped";
   return (
@@ -374,7 +538,13 @@ function PaidOrder({ order, shop }: { order: OrderDTO; shop: string }) {
       <Head shop={shop} number={order.number} date={liveDate(order.createdAt)} />
       <To
         name={order.buyer.name}
-        note={order.shipTo ? `Sending to ${order.shipTo}` : "Address from your PayPal"}
+        note={
+          order.shipTo
+            ? `Sending to ${order.shipTo}`
+            : order.shipsWithOrderNumber
+              ? `In the same parcel as #${sortNumber(order.shipsWithOrderNumber)}`
+              : "Address from your PayPal"
+        }
       />
       <div className="zone px-3.5 py-1">
         <Lines lines={order.lines.filter((l) => l.status === "paid")} />
@@ -389,7 +559,7 @@ function PaidOrder({ order, shop }: { order: OrderDTO; shop: string }) {
         <span className="truncate text-right text-[13px]">
           {shipped && order.tracking
             ? `${order.tracking.carrier}, ${order.tracking.number}`
-            : `with PayPal${order.captureId ? `, ref ${order.captureId}` : ""}`}
+            : `${PAID_VIA[order.paidVia ?? "checkout"]}${order.captureId ? `, ref ${order.captureId}` : ""}`}
         </span>
       </div>
     </section>

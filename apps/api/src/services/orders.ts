@@ -1,5 +1,5 @@
 import type { OrderDTO, StockChange } from "@plusone/shared";
-import { and, asc, desc, eq, inArray, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import {
   buyers,
@@ -20,6 +20,34 @@ type OrderRow = typeof orders.$inferSelect;
 const OPEN_STATUSES = ["draft", "reserved"] as const;
 /** Lines that count towards what the buyer owes. */
 const BILLABLE = ["held", "paid"] as const;
+
+/**
+ * With auto-pay on, PlusOne pays for what the buyer said this long after the
+ * order last changed, so "actually make it L" lands before the money moves.
+ */
+export const AUTOPAY_AFTER_MS = 15_000;
+
+/** How much auto-pay may still spend for this buyer in this live. */
+export async function autopayRoom(
+  tx: Tx,
+  buyer: Pick<typeof buyers.$inferSelect, "id" | "autopaySessionId" | "autopayLimitCents">,
+  sessionId: string,
+): Promise<number> {
+  if (buyer.autopaySessionId !== sessionId || !buyer.autopayLimitCents) return 0;
+  const [spent] = await tx
+    .select({ cents: sql<number>`coalesce(sum(${payments.amountCents}), 0)::int` })
+    .from(payments)
+    .innerJoin(orders, eq(orders.id, payments.orderId))
+    .where(
+      and(
+        eq(orders.sessionId, sessionId),
+        eq(orders.buyerId, buyer.id),
+        eq(payments.via, "auto"),
+        inArray(payments.status, ["created", "approved", "captured", "partially_refunded"]),
+      ),
+    );
+  return buyer.autopayLimitCents - (spent?.cents ?? 0);
+}
 
 /** The buyer's open order in this session, created on first use. Locked for the rest of the transaction. */
 export async function openOrderFor(
@@ -226,6 +254,21 @@ export async function recalcOrder(tx: Tx, orderId: string): Promise<void> {
     discountCents = await bundleDiscountCents(tx, order.sessionId, lines);
   }
 
+  const totalCents = subtotalCents - discountCents + shippingCents;
+
+  // Every change to an open order restarts the auto-pay countdown.
+  let autopayAt: Date | null = null;
+  if (order.status === "reserved" && holds.length > 0) {
+    const [buyer] = await tx.select().from(buyers).where(eq(buyers.id, order.buyerId));
+    if (
+      buyer?.paypalVaultId &&
+      buyer.autopaySessionId === order.sessionId &&
+      totalCents <= (await autopayRoom(tx, buyer, order.sessionId))
+    ) {
+      autopayAt = new Date(Date.now() + AUTOPAY_AFTER_MS);
+    }
+  }
+
   await tx
     .update(orders)
     .set({
@@ -233,8 +276,9 @@ export async function recalcOrder(tx: Tx, orderId: string): Promise<void> {
       shippingCents,
       shipsWithOrderId,
       discountCents,
-      totalCents: subtotalCents - discountCents + shippingCents,
+      totalCents,
       holdExpiresAt,
+      autopayAt,
     })
     .where(eq(orders.id, orderId));
 }
@@ -399,6 +443,9 @@ async function getOrderDTOs(tx: Tx, orderIds: string[]): Promise<OrderDTO[]> {
         paidAt: order.paidAt?.toISOString() ?? null,
         paypalOrderId: payment?.paypalOrderId ?? null,
         captureId: payment?.captureId ?? null,
+        paidVia:
+          paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.via ?? null,
+        autopayAt: order.autopayAt?.toISOString() ?? null,
         shipTo: shipToFrom(
           paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.raw,
         ),

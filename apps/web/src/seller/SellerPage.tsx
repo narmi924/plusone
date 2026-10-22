@@ -464,7 +464,11 @@ function OrderLabel({
           <div className="zone bg-pale px-2.5 py-2">
             <div className="flex items-center justify-between gap-2">
               <b className="sort text-[19px]">
-                {left > 0 ? `${Math.ceil(left / 60_000)} min left` : "Hold ending"}
+                {order.autopayAt
+                  ? "auto-paying"
+                  : left > 0
+                    ? `${Math.ceil(left / 60_000)} min left`
+                    : "Hold ending"}
               </b>
               <span className="font-extrabold tabular">
                 {formatMoney(order.totalCents, order.currency).replace(".00", "")}
@@ -489,7 +493,13 @@ function OrderLabel({
               <span className="text-[12.5px] text-white/80">
                 {order.status === "shipped" && order.tracking
                   ? `${order.tracking.carrier} ${order.tracking.number}`
-                  : "with PayPal"}
+                  : order.paidVia === "auto"
+                    ? "auto-pay, PayPal"
+                    : order.paidVia === "saved"
+                      ? "saved PayPal"
+                      : order.paidVia === "invoice"
+                        ? "PayPal invoice"
+                        : "with PayPal"}
               </span>
             </span>
             {order.status === "paid" && !order.shipsWithOrderNumber && !shipping && (

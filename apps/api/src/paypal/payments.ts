@@ -1,13 +1,18 @@
 import { randomUUID } from "node:crypto";
-import type { ItemRequest, Order } from "@paypal/paypal-server-sdk";
+import type { ItemRequest, Order, PurchaseUnitRequest } from "@paypal/paypal-server-sdk";
 import {
   CaptureStatus,
   CheckoutPaymentIntent,
   ItemCategory,
+  OrderStatus,
   PaypalExperienceUserAction,
+  PaypalPaymentTokenCustomerType,
+  PaypalPaymentTokenUsageType,
   PaypalWalletContextShippingPreference,
+  PaypalWalletVaultStatus,
   RefundStatus,
   ShipmentCarrier,
+  StoreInVaultInstruction,
 } from "@paypal/paypal-server-sdk";
 import type { StockChange } from "@plusone/shared";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -26,7 +31,7 @@ import {
 } from "../db/schema.js";
 import { describeVariant } from "../services/catalog.js";
 import { type Notifier, phrase } from "../services/notify.js";
-import { getOrderDTO, recalcOrder } from "../services/orders.js";
+import { autopayRoom, getOrderDTO, recalcOrder } from "../services/orders.js";
 import { moveStock, OutOfStockError } from "../services/stock.js";
 import { offerFreedStock } from "../services/waitlist.js";
 import { describePayPalError, type PayPal } from "./client.js";
@@ -73,11 +78,8 @@ export function createPayments(deps: {
 }) {
   const { db, paypal, notify, log } = deps;
 
-  /** Creates (or reuses) the PayPal order for what the buyer currently has on hold. */
-  async function createForOrder(
-    orderId: string,
-    buyerId: string,
-  ): Promise<{ paypalOrderId: string }> {
+  /** What the buyer currently has on hold, as one PayPal purchase unit. */
+  async function checkoutFor(orderId: string, buyerId: string) {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!order || order.buyerId !== buyerId) throw new PaymentError("Order not found", 404);
     if (order.status !== "reserved") throw new PaymentError("Nothing to pay for on this order");
@@ -98,19 +100,6 @@ export function createPayments(deps: {
     const discount = Math.min(order.discountCents, itemTotal);
     const amountCents = itemTotal - discount + shipping;
     const lineIds = lines.map((l) => l.line.id).sort();
-
-    // Tapping "Pay" twice for the same items reuses the PayPal order.
-    const existing = await db
-      .select()
-      .from(payments)
-      .where(and(eq(payments.orderId, orderId), eq(payments.status, "created")));
-    const reusable = existing.find(
-      (p) =>
-        p.amountCents === amountCents &&
-        JSON.stringify([...p.lineIds].sort()) === JSON.stringify(lineIds),
-    );
-    if (reusable) return { paypalOrderId: reusable.paypalOrderId };
-
     const currencyCode = order.currency;
     const items: ItemRequest[] = lines.map(({ line, variant, product }) => ({
       name: [product.name, [variant.color, variant.size].filter(Boolean).join(" / ")]
@@ -122,6 +111,52 @@ export function createPayments(deps: {
       category: ItemCategory.PhysicalGoods,
     }));
 
+    const unit = (paymentId: string): PurchaseUnitRequest => ({
+      referenceId: order.id,
+      customId: order.id,
+      // Unique per merchant forever, so it can't collide after a demo reset.
+      invoiceId: `PO${order.number}-${paymentId.slice(0, 8)}`,
+      description: `${seller?.name ?? "PlusOne"} live order #${order.number}`,
+      softDescriptor: "PLUSONE LIVE",
+      amount: {
+        ...money(amountCents, currencyCode),
+        breakdown: {
+          itemTotal: money(itemTotal, currencyCode),
+          shipping: money(shipping, currencyCode),
+          ...(discount > 0 ? { discount: money(discount, currencyCode) } : {}),
+        },
+      },
+      items,
+    });
+    return { order, seller, amountCents, lineIds, unit };
+  }
+
+  /**
+   * Creates (or reuses) the PayPal order for what the buyer currently has on
+   * hold. With `save`, PayPal also asks the buyer to save their PayPal with this
+   * shop (Vault) for one-tap payment next time.
+   */
+  async function createForOrder(
+    orderId: string,
+    buyerId: string,
+    opts: { save?: boolean; returnUrl?: string } = {},
+  ): Promise<{ paypalOrderId: string }> {
+    const { order, seller, amountCents, lineIds, unit } = await checkoutFor(orderId, buyerId);
+    const save = Boolean(opts.save);
+
+    // Tapping "Pay" twice for the same items reuses the PayPal order.
+    const existing = await db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.orderId, orderId), eq(payments.status, "created")));
+    const reusable = existing.find(
+      (p) =>
+        p.amountCents === amountCents &&
+        JSON.stringify([...p.lineIds].sort()) === JSON.stringify(lineIds) &&
+        Boolean((p.raw as { save?: boolean } | null)?.save) === save,
+    );
+    if (reusable) return { paypalOrderId: reusable.paypalOrderId };
+
     const paymentId = randomUUID();
     try {
       const { result } = await paypal.orders.createOrder({
@@ -129,31 +164,28 @@ export function createPayments(deps: {
         prefer: "return=minimal",
         body: {
           intent: CheckoutPaymentIntent.Capture,
-          purchaseUnits: [
-            {
-              referenceId: order.id,
-              customId: order.id,
-              // Unique per merchant forever, so it can't collide after a demo reset.
-              invoiceId: `PO${order.number}-${paymentId.slice(0, 8)}`,
-              description: `${seller?.name ?? "PlusOne"} live order #${order.number}`,
-              softDescriptor: "PLUSONE LIVE",
-              amount: {
-                ...money(amountCents, currencyCode),
-                breakdown: {
-                  itemTotal: money(itemTotal, currencyCode),
-                  shipping: money(shipping, currencyCode),
-                  ...(discount > 0 ? { discount: money(discount, currencyCode) } : {}),
-                },
-              },
-              items,
-            },
-          ],
+          purchaseUnits: [unit(paymentId)],
           paymentSource: {
             paypal: {
+              ...(save
+                ? {
+                    attributes: {
+                      vault: {
+                        storeInVault: StoreInVaultInstruction.OnSuccess,
+                        usageType: PaypalPaymentTokenUsageType.Merchant,
+                        customerType: PaypalPaymentTokenCustomerType.Consumer,
+                      },
+                    },
+                  }
+                : {}),
               experienceContext: {
                 brandName: seller?.name ?? "PlusOne",
                 shippingPreference: PaypalWalletContextShippingPreference.GetFromFile,
                 userAction: PaypalExperienceUserAction.PayNow,
+                // Saving requires them, even though the buyer pays in a popup and never lands there.
+                ...(save && opts.returnUrl
+                  ? { returnUrl: opts.returnUrl, cancelUrl: opts.returnUrl }
+                  : {}),
               },
             },
           },
@@ -167,8 +199,10 @@ export function createPayments(deps: {
         paypalOrderId: result.id,
         status: "created",
         amountCents,
-        currency: currencyCode,
+        currency: order.currency,
         lineIds,
+        // Replaced by PayPal's response on capture; until then it marks a saving checkout.
+        raw: save ? { save } : null,
       });
       return { paypalOrderId: result.id };
     } catch (err) {
@@ -177,6 +211,103 @@ export function createPayments(deps: {
       log.error({ err, info }, "PayPal create order failed");
       throw new PaymentError(info.message, 502, info.issue);
     }
+  }
+
+  /**
+   * Pays with the PayPal the buyer saved at an earlier checkout: no PayPal
+   * window, the money moves in one call. Auto-pay uses the same path with its
+   * own limit.
+   */
+  async function payWithSaved(orderId: string, buyerId: string, via: "saved" | "auto") {
+    // A double tap, or a tap while auto-pay fires, must not charge twice.
+    if (paying.has(orderId)) throw new PaymentError("Already paying for this order", 409);
+    paying.add(orderId);
+    try {
+      return await chargeSaved(orderId, buyerId, via);
+    } finally {
+      paying.delete(orderId);
+    }
+  }
+  const paying = new Set<string>();
+
+  async function chargeSaved(orderId: string, buyerId: string, via: "saved" | "auto") {
+    const [buyer] = await db.select().from(buyers).where(eq(buyers.id, buyerId));
+    if (!buyer?.paypalVaultId)
+      throw new PaymentError("No saved PayPal yet. Pay with the PayPal button.", 409);
+    const { order, amountCents, lineIds, unit } = await checkoutFor(orderId, buyerId);
+    if (via === "auto") {
+      const room = await autopayRoom(db, buyer, order.sessionId);
+      if (amountCents > room)
+        throw new PaymentError(
+          "That's over your auto-pay limit for this live",
+          409,
+          "AUTOPAY_LIMIT",
+        );
+    }
+
+    const paymentId = randomUUID();
+    let result: Order;
+    try {
+      ({ result } = await paypal.orders.createOrder({
+        paypalRequestId: paymentId,
+        prefer: "return=representation",
+        body: {
+          intent: CheckoutPaymentIntent.Capture,
+          purchaseUnits: [
+            {
+              ...unit(paymentId),
+              ...(buyer.paypalShipping ? { shipping: buyer.paypalShipping } : {}),
+            },
+          ],
+          paymentSource: { paypal: { vaultId: buyer.paypalVaultId } },
+        },
+      }));
+    } catch (err) {
+      const info = describePayPalError(err);
+      log.warn({ info, orderId }, "PayPal saved payment failed");
+      throw new PaymentError(info.message, info.status === 422 ? 422 : 502, info.issue);
+    }
+    if (!result.id) throw new PaymentError("PayPal did not return an order id", 502);
+
+    const [payment] = await db
+      .insert(payments)
+      .values({
+        id: paymentId,
+        orderId,
+        paypalOrderId: result.id,
+        status: "created",
+        amountCents,
+        currency: order.currency,
+        lineIds,
+        via,
+      })
+      .returning();
+    if (!payment) throw new Error("Could not record the payment");
+    // A saved PayPal usually completes on create; otherwise capture as usual.
+    if (result.status !== OrderStatus.Completed) return capture(result.id, buyerId);
+    await applyCapture(payment, result);
+    return getOrderDTO(db, orderId);
+  }
+
+  /** The buyer no longer wants their PayPal saved here: delete it at PayPal too. */
+  async function forgetSaved(buyerId: string) {
+    const [buyer] = await db.select().from(buyers).where(eq(buyers.id, buyerId));
+    if (buyer?.paypalVaultId) {
+      await paypal.vault.deletePaymentToken(buyer.paypalVaultId).catch((err: unknown) => {
+        // Already gone at PayPal is fine; we still forget it here.
+        log.warn({ info: describePayPalError(err) }, "PayPal vault delete failed");
+      });
+    }
+    await db
+      .update(buyers)
+      .set({
+        paypalVaultId: null,
+        paypalCustomerId: null,
+        paypalEmail: null,
+        autopaySessionId: null,
+        autopayLimitCents: null,
+      })
+      .where(eq(buyers.id, buyerId));
   }
 
   /** Captures an approved PayPal order. Safe to call more than once. */
@@ -212,10 +343,18 @@ export function createPayments(deps: {
       }
     }
 
+    await applyCapture(payment, result);
+    return getOrderDTO(db, payment.orderId);
+  }
+
+  /** PayPal's answer to a capture: paid, still pending, or declined. */
+  async function applyCapture(payment: PaymentRow, result: Order) {
     const cap = result.purchaseUnits?.[0]?.payments?.captures?.[0];
     if (cap?.status === CaptureStatus.Completed && cap.id) {
+      await rememberSavedPayPal(payment.orderId, result);
       await settle(payment.id, cap.id, {
-        payerEmail: result.payer?.emailAddress ?? null,
+        payerEmail:
+          result.payer?.emailAddress ?? result.paymentSource?.paypal?.emailAddress ?? null,
         raw: result,
       });
     } else if (cap?.status === CaptureStatus.Pending) {
@@ -234,7 +373,30 @@ export function createPayments(deps: {
         "CAPTURE_DECLINED",
       );
     }
-    return getOrderDTO(db, payment.orderId);
+  }
+
+  /** The buyer agreed on PayPal's page to save their PayPal here: keep the token for next time. */
+  async function rememberSavedPayPal(orderId: string, result: Order) {
+    const wallet = result.paymentSource?.paypal;
+    const vault = wallet?.attributes?.vault;
+    const shipping = result.purchaseUnits?.[0]?.shipping;
+    if (!vault?.id || vault.status !== PaypalWalletVaultStatus.Vaulted) return;
+    const [order] = await db
+      .select({ buyerId: orders.buyerId })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+    if (!order) return;
+    await db
+      .update(buyers)
+      .set({
+        paypalVaultId: vault.id,
+        paypalCustomerId: vault.customer?.id ?? null,
+        paypalEmail: wallet?.emailAddress ?? null,
+        paypalShipping: shipping?.address
+          ? { address: shipping.address, ...(shipping.name ? { name: shipping.name } : {}) }
+          : null,
+      })
+      .where(eq(buyers.id, order.buyerId));
   }
 
   /**
@@ -624,12 +786,22 @@ export function createPayments(deps: {
         amountCents: input.amountCents,
         currency: input.currency,
         lineIds: input.lineIds,
+        via: "invoice",
       });
     }
     await settle(paymentId, input.captureId, { payerEmail: null, raw: input.raw });
   }
 
-  return { createForOrder, capture, refundLine, shipOrder, settleExternal, onWebhookEvent };
+  return {
+    createForOrder,
+    capture,
+    payWithSaved,
+    forgetSaved,
+    refundLine,
+    shipOrder,
+    settleExternal,
+    onWebhookEvent,
+  };
 }
 
 export type Payments = ReturnType<typeof createPayments>;

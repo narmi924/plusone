@@ -229,6 +229,7 @@ export function createCopilot(deps: {
               : null,
           paypal_order_id: o.paypalOrderId,
           capture_id: o.captureId,
+          paid_via: o.paidVia,
           invoice: inv ? { id: inv.id, status: inv.status, due_at: inv.dueAt.toISOString() } : null,
           tracking: o.tracking,
         };

@@ -8,6 +8,7 @@ import type {
   RuleDTO,
   SessionDTO,
   WaitingDTO,
+  WalletDTO,
 } from "@plusone/shared";
 
 export class ApiError extends Error {
@@ -60,12 +61,24 @@ export const api = {
   me: (buyerToken: string) => request<BuyerDTO>("/api/me", { buyerToken }),
   myOrders: (sessionId: string, buyerToken: string) =>
     request<OrderDTO[]>(`/api/sessions/${sessionId}/my-orders`, { buyerToken }),
-  startPayPal: (orderId: string, buyerToken: string) =>
+  startPayPal: (orderId: string, buyerToken: string, save = false) =>
     request<{ paypalOrderId: string }>(`/api/orders/${orderId}/paypal`, {
       method: "POST",
-      body: {},
+      body: { save },
       buyerToken,
     }),
+  paySaved: (orderId: string, buyerToken: string) =>
+    request<OrderDTO>(`/api/orders/${orderId}/pay-saved`, { body: {}, buyerToken }),
+  wallet: (sessionId: string, buyerToken: string) =>
+    request<WalletDTO>(`/api/sessions/${sessionId}/wallet`, { buyerToken }),
+  setAutopay: (sessionId: string, limitCents: number | null, buyerToken: string) =>
+    request<WalletDTO>(`/api/sessions/${sessionId}/autopay`, {
+      method: "PUT",
+      body: { limitCents },
+      buyerToken,
+    }),
+  forgetPayPal: (buyerToken: string) =>
+    request<WalletDTO>("/api/me/paypal", { method: "DELETE", buyerToken }),
   capturePayPal: (paypalOrderId: string, buyerToken: string) =>
     request<OrderDTO>(`/api/paypal/orders/${paypalOrderId}/capture`, {
       method: "POST",

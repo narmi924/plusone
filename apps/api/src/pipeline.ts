@@ -13,6 +13,7 @@ import {
   variants,
   waitlist,
 } from "./db/schema.js";
+import { holdOff } from "./services/autopay.js";
 import {
   describeVariant,
   getSessionDTO,
@@ -23,6 +24,7 @@ import {
 import { insertMessage } from "./services/chat.js";
 import { type Notifier, phrase } from "./services/notify.js";
 import {
+  AUTOPAY_AFTER_MS,
   cancelLine,
   holdItem,
   LineNotHeldError,
@@ -97,6 +99,11 @@ export function createChatPipeline(deps: {
       showcaseProductId: row.session.currentProductId,
     });
     deps.onMessage(msg);
+    await holdOff(db, notify, {
+      buyerId: input.buyer.id,
+      sessionId: input.sessionId,
+      ms: AUTOPAY_AFTER_MS,
+    });
 
     const understood: Promise<Understood> = (buyerTail.get(input.buyer.id) ?? Promise.resolve())
       .then(() => understand(msg, input.buyer, row))
@@ -182,6 +189,11 @@ export function createChatPipeline(deps: {
       ...waits.map((w, i) => [`W${i + 1}`, w.id] as const),
     ]);
 
+    const [wallet] = await db
+      .select({ vault: buyers.paypalVaultId, autopayIn: buyers.autopaySessionId })
+      .from(buyers)
+      .where(eq(buyers.id, buyer.id));
+
     const at = msg.createdAt.getTime();
     const result = await deps.interpret({
       sellerName: row.seller.name,
@@ -195,6 +207,7 @@ export function createChatPipeline(deps: {
       },
       shownBefore: shownBefore && { code: shownBefore.code, name: shownBefore.name },
       buyerName: buyer.name,
+      autopay: Boolean(wallet?.vault) && wallet?.autopayIn === msg.sessionId,
       recentMessages: earlier
         .reverse()
         .map((m) => ({ secondsAgo: (at - m.createdAt.getTime()) / 1000, body: m.body })),
@@ -237,6 +250,9 @@ export function createChatPipeline(deps: {
       replyToId: msg.id,
     });
     deps.onMessage(row);
+    // A question to the buyer: give them time to answer before auto-pay pays.
+    if (options?.length)
+      await holdOff(db, notify, { buyerId: buyer.id, sessionId: msg.sessionId, ms: 60_000 });
   }
 
   async function flagForSeller(

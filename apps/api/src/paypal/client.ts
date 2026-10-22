@@ -5,6 +5,7 @@ import {
   Environment,
   OrdersController,
   PaymentsController,
+  VaultController,
 } from "@paypal/paypal-server-sdk";
 import type { Env } from "../env.js";
 
@@ -74,6 +75,7 @@ export function createPayPal(env: Env) {
   return {
     orders: new OrdersController(client),
     payments: new PaymentsController(client),
+    vault: new VaultController(client),
     rest,
   };
 }

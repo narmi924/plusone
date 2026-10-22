@@ -98,6 +98,16 @@ export interface BuyerDTO {
   email: string;
 }
 
+export type PaidVia = "checkout" | "saved" | "auto" | "invoice";
+
+/** The buyer's saved PayPal and auto-pay for one live. */
+export interface WalletDTO {
+  /** The PayPal account saved at an earlier checkout, e.g. "sb-nh…@personal.example.com". */
+  savedPayPal: string | null;
+  /** Auto-pay for this live: PlusOne pays for what the buyer says, up to the limit. */
+  autopay: { limitCents: number; spentCents: number } | null;
+}
+
 export interface ChatOption {
   label: string;
   /** Text sent on the buyer's behalf when they tap the option. */
@@ -150,6 +160,9 @@ export interface OrderDTO {
   paidAt: string | null;
   paypalOrderId: string | null;
   captureId: string | null;
+  paidVia: PaidVia | null;
+  /** Auto-pay will charge the saved PayPal at this time unless the order changes. */
+  autopayAt: string | null;
   /** Where PayPal says to send it (from the buyer's PayPal checkout), one line. */
   shipTo: string | null;
   tracking: { carrier: string; number: string } | null;
