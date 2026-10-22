@@ -2,6 +2,7 @@ import type {
   AttentionDTO,
   BuyerDTO,
   ChatMessageDTO,
+  LookDTO,
   OrderDTO,
   PublicConfig,
   RecapDTO,
@@ -94,6 +95,8 @@ export const api = {
       body: { productId },
       sellerToken,
     }),
+  look: (sessionId: string, frame: string, sellerToken: string) =>
+    request<LookDTO>(`/api/seller/sessions/${sessionId}/look`, { body: { frame }, sellerToken }),
   videoToken: (sessionId: string, sellerToken?: string | null) =>
     request<{ url: string; token: string; identity: string }>(
       `/api/sessions/${sessionId}/video-token`,

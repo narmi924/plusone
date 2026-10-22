@@ -17,6 +17,7 @@ import { ChatFeed } from "../live/Chat";
 import { dueLabel, holdLeft, sortNumber } from "../live/OrderSlip";
 import { ConsoleTabs } from "./ConsoleTabs";
 import { Copilot } from "./Copilot";
+import { WatchControl } from "./HostEyes";
 import { VoiceCards, VoiceControl } from "./HostVoice";
 import { NeedsYou } from "./NeedsYou";
 
@@ -215,6 +216,7 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
         >
           <CameraPanel camera={camera} />
           <VoiceControl speech={speech} />
+          <WatchControl sessionId={session.id} token={token} track={camera.preview} />
           <ProductList
             products={session.products}
             currentId={session.currentProductId}

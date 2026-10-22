@@ -37,6 +37,7 @@ Holds, waitlists, per-person limits, reminders and invoices work the way sellers
 - Every order as a label on the packing table, sorted into three lanes: waiting to pay (with its hold draining and a Remind button), paid and ready to pack, sent. People waiting in line, and the latest +1s scrolling across the top.
 - The few things only the seller can decide, on red packing tape across the top, such as a refund request with a one-tap refund through PayPal.
 - Cards from what the host says ("dress and blouse together, five dollars off"); one tap applies them, and buyers holding the dress are offered the blouse.
+- **Let PlusOne watch**: with the camera on, the host holds a product up and it goes on screen for buyers, so their "+1" means what they can see. No tapping mid-sale.
 - Ship with a tracking number; End live sends the PayPal invoices and writes the night's recap.
 - **Ask PlusOne**: type or say "Hey PlusOne, who still owes?" and it looks through tonight's orders and the shop's PayPal account (PayPal Agent Toolkit). Anything that moves money or messages buyers comes back as a card to approve: remind them in chat, send PayPal invoice reminders, refund a line, ship with a tracking number. It can also put a product on screen or make a pay QR code for an invoice.
 - A report (AG Studio) with an AI assistant that answers "why is blue M sold out?" and can remind everyone who still owes.
@@ -77,6 +78,7 @@ Claude (Opus 5.5) does the understanding; code does the money.
 
 - **Chat**: each buyer message is read with what's on screen, what was shown before, the buyer's open order, waitlists, deals, the shop's policies and what the host said in the last minute. The result is a structured action (buy, change, cancel, question, waitlist...) that the server applies in the order messages arrived. Prices, stock and holds are never decided by the model.
 - **Host speech**: the host's voice (Deepgram, streamed through the server) becomes cards for new products, prices, bundles and limits. Nothing changes until the host taps Apply.
+- **Host camera**: every two seconds or so the console sends a small frame from the host's camera; Claude names the catalog product being shown, or none. The product goes on screen only when two frames in a row agree. Frames aren't stored.
 - **After the live**: Claude reads the night's orders, stock and chat and leaves the seller a short to-do list.
 - **Ask PlusOne**: Claude with tool use over tonight's orders and the PayPal Agent Toolkit's tools; the host can also ask it out loud ("Hey PlusOne, ...") while selling.
 - **Report assistant**: AG Studio's agents run on Claude through the server, with one extra tool that sends payment reminders.

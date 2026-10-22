@@ -16,10 +16,13 @@ export function startDemoKeeper(deps: {
   db: Db;
   log: FastifyBaseLogger;
   onReset: () => void;
+  /** Someone is hosting right now (console open or camera on): don't reset under them. */
+  hosting: () => Promise<boolean>;
   everyMs?: number;
 }) {
   const { db, log } = deps;
   const tick = async () => {
+    if (await deps.hosting()) return;
     const { rows } = await db.execute<{ last: Date | string | null; ended: boolean }>(sql`
       select greatest(
         (select max(created_at) from chat_messages),

@@ -98,6 +98,18 @@ export interface BuyerDTO {
   email: string;
 }
 
+/** What PlusOne saw in a frame from the host's camera. */
+export type LookDTO =
+  | { busy: true }
+  | {
+      busy: false;
+      saw: string | null;
+      product: { code: string; name: string } | null;
+      /** That product is what buyers see now (it was already, or it just went on). */
+      onScreen: boolean;
+      switched: boolean;
+    };
+
 export type PaidVia = "checkout" | "saved" | "auto" | "invoice";
 
 /** The buyer's saved PayPal and auto-pay for one live. */

@@ -8,6 +8,7 @@ import { buyers, liveSessions, orders, rules, webhookEvents } from "./db/schema.
 import { seedDemo } from "./db/seed.js";
 import { type Env, integrationStatus } from "./env.js";
 import type { HostEars } from "./hostEars.js";
+import type { HostWatch } from "./hostWatch.js";
 import type { Jobs } from "./jobs/runner.js";
 import { closeOutLive } from "./jobs/tasks.js";
 import {
@@ -48,6 +49,8 @@ interface Deps {
   invoicing: Invoicing | null;
   livekit: LiveKit | null;
   hostEars: HostEars;
+  /** Reads frames from the host's camera and puts the product they hold up on screen. */
+  hostWatch: HostWatch;
   notify: Notifier;
   jobs: Jobs;
   /** The seller's copilot (Claude + PayPal Agent Toolkit); null without an Anthropic key. */
@@ -287,6 +290,21 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       if (!requireSeller(req, reply)) return;
       realtime.setVideo(req.params.id, req.body?.on === true);
       return { on: realtime.isVideoOn(req.params.id) };
+    },
+  );
+
+  // --- The host's camera -> what's on screen ---
+
+  app.post<{ Params: { id: string }; Body: { frame?: unknown } | null }>(
+    "/api/seller/sessions/:id/look",
+    async (req, reply) => {
+      if (!requireSeller(req, reply)) return;
+      if (!deps.hostWatch.available)
+        return reply.code(503).send({ error: "PlusOne can't see without an Anthropic key" });
+      const frame = req.body?.frame;
+      if (typeof frame !== "string" || frame.length < 100 || frame.length > 900_000)
+        return reply.code(400).send({ error: "Send one JPEG frame, base64" });
+      return deps.hostWatch.frame(req.params.id, frame);
     },
   );
 

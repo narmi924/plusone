@@ -3,9 +3,10 @@ import { fileURLToPath } from "node:url";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import type { OrderDTO } from "@plusone/shared";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Fastify from "fastify";
 import { createCopilot } from "./ai/copilot.js";
+import { createHostEyes } from "./ai/hostEyes.js";
 import { createHostListener } from "./ai/hostSpeech.js";
 import { createInterpreter } from "./ai/interpret.js";
 import { createDb, runMigrations } from "./db/client.js";
@@ -13,6 +14,7 @@ import { liveSessions, orders, sellers } from "./db/schema.js";
 import { seedDemo } from "./db/seed.js";
 import { loadEnv } from "./env.js";
 import { createHostEars } from "./hostEars.js";
+import { createHostWatch } from "./hostWatch.js";
 import { buildJobDeps } from "./jobs/deps.js";
 import { listenForPushes } from "./jobs/relay.js";
 import { createJobs } from "./jobs/runner.js";
@@ -162,7 +164,19 @@ const stopAutopay = payments
   : () => undefined;
 
 const stopDemoKeeper = env.DEMO_MODE
-  ? startDemoKeeper({ db, log: app.log, onReset: () => realtime.io.disconnectSockets() })
+  ? startDemoKeeper({
+      db,
+      log: app.log,
+      onReset: () => realtime.io.disconnectSockets(),
+      hosting: async () => {
+        const [live] = await db
+          .select({ id: liveSessions.id })
+          .from(liveSessions)
+          .orderBy(desc(liveSessions.createdAt))
+          .limit(1);
+        return live ? realtime.hasSeller(live.id) || realtime.isVideoOn(live.id) : false;
+      },
+    })
   : () => undefined;
 const stopDemoHost = env.DEMO_MODE
   ? startDemoHost({ db, realtime, log: app.log })
@@ -178,6 +192,12 @@ await registerRoutes(app, {
   invoicing,
   livekit: createLiveKit(env),
   hostEars,
+  hostWatch: createHostWatch({
+    db,
+    realtime,
+    look: env.ANTHROPIC_API_KEY ? createHostEyes(env.ANTHROPIC_API_KEY) : null,
+    log: app.log,
+  }),
   notify,
   jobs,
   crowd,
