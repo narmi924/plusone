@@ -168,6 +168,9 @@ const stopDemoKeeper = env.DEMO_MODE
       db,
       log: app.log,
       onReset: () => realtime.io.disconnectSockets(),
+      beforeReset: async () => {
+        await invoicing?.cancelForOrder(null);
+      },
       hosting: async () => {
         const [live] = await db
           .select({ id: liveSessions.id })

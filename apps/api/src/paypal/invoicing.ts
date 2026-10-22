@@ -180,11 +180,16 @@ export function createInvoicing(deps: {
   }
 
   /** A hold ran out: the items are back on sale, so the invoice can't be paid any more. */
-  async function cancelForOrder(orderId: string) {
+  /** Cancels this order's open invoice, or every open invoice (before a demo reset). */
+  async function cancelForOrder(orderId: string | null) {
     const open = await db
       .select()
       .from(invoices)
-      .where(and(eq(invoices.orderId, orderId), eq(invoices.status, "sent")));
+      .where(
+        orderId
+          ? and(eq(invoices.orderId, orderId), eq(invoices.status, "sent"))
+          : eq(invoices.status, "sent"),
+      );
     for (const inv of open) {
       await paypal
         .rest("POST", `/v2/invoicing/invoices/${inv.paypalInvoiceId}/cancel`, {

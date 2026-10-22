@@ -18,6 +18,8 @@ export function startDemoKeeper(deps: {
   onReset: () => void;
   /** Someone is hosting right now (console open or camera on): don't reset under them. */
   hosting: () => Promise<boolean>;
+  /** Runs before the shop is wiped (e.g. cancel open PayPal invoices). */
+  beforeReset?: () => Promise<void>;
   everyMs?: number;
 }) {
   const { db, log } = deps;
@@ -35,6 +37,7 @@ export function startDemoKeeper(deps: {
     if (!row?.last) return; // untouched since the last reset
     const idle = Date.now() - new Date(row.last).getTime();
     if (idle < (row.ended ? ENDED_IDLE_MS : IDLE_MS)) return;
+    await deps.beforeReset?.();
     await seedDemo(db);
     log.info({ idleMinutes: Math.round(idle / 60_000) }, "demo reset after a quiet spell");
     deps.onReset();

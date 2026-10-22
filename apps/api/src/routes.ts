@@ -521,6 +521,8 @@ data: ${JSON.stringify(data)}
 
   app.post("/api/seller/demo/reset", async (req, reply) => {
     if (!requireSeller(req, reply)) return;
+    // Don't leave the old shop's invoices open in the PayPal account.
+    await deps.invoicing?.cancelForOrder(null);
     const sessionId = await seedDemo(db);
     realtime.io.disconnectSockets();
     return { sessionId };
