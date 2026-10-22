@@ -16,6 +16,7 @@ import { TrackVideo, useHostCamera } from "../lib/video";
 import { ChatFeed } from "../live/Chat";
 import { dueLabel, holdLeft, sortNumber } from "../live/OrderSlip";
 import { ConsoleTabs } from "./ConsoleTabs";
+import { Copilot } from "./Copilot";
 import { VoiceCards, VoiceControl } from "./HostVoice";
 import { NeedsYou } from "./NeedsYou";
 
@@ -224,6 +225,7 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
 
         <main className="kraft overflow-y-auto p-5" aria-label="Tonight's order book">
           {session.status === "ended" && <AfterLive sessionId={session.id} token={token} />}
+          <Copilot sessionId={session.id} token={token} />
           <NeedsYou sessionId={session.id} token={token} />
           <VoiceCards sessionId={session.id} token={token} />
           <div className="grid items-start gap-4 xl:grid-cols-3">

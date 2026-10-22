@@ -144,6 +144,17 @@ export const api = {
     request<{ recap: RecapDTO | null }>(`/api/seller/sessions/${sessionId}/recap`, {
       sellerToken,
     }),
+  applyProposal: (sessionId: string, proposalId: string, sellerToken: string) =>
+    request<{ ok: true; result: string }>(
+      `/api/seller/sessions/${sessionId}/copilot/${proposalId}/apply`,
+      { method: "POST", body: {}, sellerToken },
+    ),
+  dismissProposal: (sessionId: string, proposalId: string, sellerToken: string) =>
+    request<{ ok: true }>(`/api/seller/sessions/${sessionId}/copilot/${proposalId}/dismiss`, {
+      method: "POST",
+      body: {},
+      sellerToken,
+    }),
   playCrowd: (sessionId: string, sellerToken: string) =>
     request<{ started: true }>(`/api/seller/sessions/${sessionId}/crowd`, {
       method: "POST",

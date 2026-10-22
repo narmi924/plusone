@@ -227,6 +227,8 @@ export interface ServerToClientEvents {
   "host:heard": (payload: { text: string }) => void;
   /** The sentence the host is in the middle of (seller only). */
   "host:interim": (payload: { text: string }) => void;
+  /** The host said "PlusOne, …" out loud: a request for the copilot (seller only). */
+  "copilot:ask": (payload: { text: string }) => void;
   /** The after-live recap is ready (seller only); refetch it. */
   "recap:changed": () => void;
 }

@@ -18,6 +18,8 @@ interface LiveState {
   /** Bumped whenever someone joins, leaves or gets served from a waitlist. */
   waitlistVersion: number;
   recapVersion: number;
+  /** The latest "PlusOne, …" the host said out loud, for the copilot. */
+  copilotAsk: { text: string; n: number } | null;
   /** The host's latest finished sentence, as PlusOne heard it. */
   heard: string | null;
   /** The sentence the host is in the middle of. */
@@ -36,6 +38,7 @@ interface LiveState {
   bumpRules: () => void;
   bumpWaitlist: () => void;
   bumpRecap: () => void;
+  setCopilotAsk: (text: string) => void;
   setHeard: (text: string) => void;
   setHearing: (text: string) => void;
 }
@@ -50,6 +53,7 @@ export const useLive = create<LiveState>((set) => ({
   rulesVersion: 0,
   waitlistVersion: 0,
   recapVersion: 0,
+  copilotAsk: null,
   heard: null,
   hearing: "",
   setSession: (session) => set({ session }),
@@ -101,6 +105,7 @@ export const useLive = create<LiveState>((set) => ({
   bumpRules: () => set((s) => ({ rulesVersion: s.rulesVersion + 1 })),
   bumpWaitlist: () => set((s) => ({ waitlistVersion: s.waitlistVersion + 1 })),
   bumpRecap: () => set((s) => ({ recapVersion: s.recapVersion + 1 })),
+  setCopilotAsk: (text) => set((s) => ({ copilotAsk: { text, n: (s.copilotAsk?.n ?? 0) + 1 } })),
   setHeard: (heard) => set({ heard }),
   setHearing: (hearing) => set({ hearing }),
 }));
@@ -178,6 +183,7 @@ export function useLiveRoom(opts: {
       socket.on("rules:changed", () => useLive.getState().bumpRules());
       socket.on("waitlist:changed", () => useLive.getState().bumpWaitlist());
       socket.on("recap:changed", () => useLive.getState().bumpRecap());
+      socket.on("copilot:ask", ({ text }) => useLive.getState().setCopilotAsk(text));
       socket.on("host:heard", ({ text }) => useLive.getState().setHeard(text));
       socket.on("host:interim", ({ text }) => useLive.getState().setHearing(text));
       // New products, prices or deals: reload the catalog, keep live state.

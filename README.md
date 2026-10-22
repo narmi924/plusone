@@ -10,7 +10,18 @@ PlusOne sits in the seller's own live page. It follows what is on screen and wha
 
 ## How it's different
 
-Comment-selling tools already exist. CommentSold, for example, turns comments into orders, holds carts and sends invoices; its help docs ask buyers to comment in a set format (keyword, item number, size) for items the seller set up in advance. **PlusOne lets buyers talk the way they already do**, and handles what a set format can't: pointing back at an earlier item, changing an order in place, conditions ("only if M"), questions that shouldn't take stock, mixed languages, and the host announcing deals out loud.
+Comment-selling tools are common: CommentSold and SoldLive in the US, SHOPLINE in Hong Kong and Taiwan, EasyStore and BigSeller in Southeast Asia. They turn comments into orders, hold carts, run waitlists and send invoices, and they all ask buyers to type a code: `A1+1`, `CF A01`, `sold 12`. The nearest anyone comes to reading free text is SHOPLINE labelling comments as purchase, question, positive or negative (it doesn't create orders) and SoldLive confirming the variant by text message after the comment.
+
+**Others make buyers type a code. PlusOne reads the live chat the way a person does, while the live is happening:**
+
+- "the blue one from before, M" is matched to the product the host showed earlier;
+- "change to L, don't add another" edits the order in place;
+- "if no M forget it" becomes a conditional order that never takes a different colour;
+- "still got pink S?" gets an answer without taking stock;
+- English, Malay, Chinese, Thai and Indonesian, mixed in one sentence, answered in the buyer's own language;
+- and it asks one short question only when it really can't tell.
+
+Holds, waitlists, per-person limits, reminders and invoices work the way sellers already expect from comment-selling tools; PlusOne runs them through PayPal.
 
 ## What you see
 

@@ -165,6 +165,9 @@ export function createRealtime(
     attentionChanged(sessionId: string) {
       io.to(sellerRoom(sessionId)).emit("attention:changed");
     },
+    copilotAsk(sessionId: string, text: string) {
+      io.to(sellerRoom(sessionId)).emit("copilot:ask", { text });
+    },
     recapChanged(sessionId: string) {
       io.to(sellerRoom(sessionId)).emit("recap:changed");
     },

@@ -5,6 +5,7 @@ import fastifyStatic from "@fastify/static";
 import type { OrderDTO } from "@plusone/shared";
 import { eq } from "drizzle-orm";
 import Fastify from "fastify";
+import { createCopilot } from "./ai/copilot.js";
 import { createHostListener } from "./ai/hostSpeech.js";
 import { createInterpreter } from "./ai/interpret.js";
 import { createDb, runMigrations } from "./db/client.js";
@@ -175,6 +176,24 @@ await registerRoutes(app, {
   notify,
   jobs,
   crowd,
+  copilot: env.ANTHROPIC_API_KEY
+    ? createCopilot({
+        apiKey: env.ANTHROPIC_API_KEY,
+        paypal:
+          env.PAYPAL_CLIENT_ID && env.PAYPAL_CLIENT_SECRET
+            ? {
+                clientId: env.PAYPAL_CLIENT_ID,
+                clientSecret: env.PAYPAL_CLIENT_SECRET,
+                sandbox: env.PAYPAL_ENV === "sandbox",
+              }
+            : null,
+        db,
+        payments,
+        notify,
+        realtime,
+        log: app.log,
+      })
+    : null,
   webhookId: () => webhookId,
 });
 

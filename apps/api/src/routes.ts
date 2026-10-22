@@ -2,6 +2,7 @@ import type { PublicConfig } from "@plusone/shared";
 import { and, eq, ne } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { Copilot } from "./ai/copilot.js";
 import type { Db } from "./db/client.js";
 import { buyers, liveSessions, orders, rules, webhookEvents } from "./db/schema.js";
 import { seedDemo } from "./db/seed.js";
@@ -48,6 +49,8 @@ interface Deps {
   hostEars: HostEars;
   notify: Notifier;
   jobs: Jobs;
+  /** The seller's copilot (Claude + PayPal Agent Toolkit); null without an Anthropic key. */
+  copilot: Copilot | null;
   /** Public demo only: a busy minute of buyers, played on request. */
   crowd: SampleCrowd | null;
   webhookId: () => string | null;
@@ -372,6 +375,66 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       return sendPaymentError(reply, err);
     }
   });
+
+  // The copilot streams what it's doing (steps, cards to approve, its answer) as server-sent events.
+  app.post<{
+    Params: { id: string };
+    Body: { message?: string; history?: Array<{ role: "user" | "assistant"; text: string }> };
+  }>("/api/seller/sessions/:id/copilot", async (req, reply) => {
+    if (!requireSeller(req, reply)) return;
+    if (!deps.copilot) return reply.code(503).send({ error: "The copilot needs an Anthropic key" });
+    const message = String(req.body?.message ?? "")
+      .trim()
+      .slice(0, 600);
+    if (!message) return reply.code(400).send({ error: "Ask something" });
+    const history = (req.body?.history ?? [])
+      .filter((h) => (h.role === "user" || h.role === "assistant") && typeof h.text === "string")
+      .map((h) => ({ role: h.role, text: h.text.slice(0, 2000) }));
+    reply.hijack();
+    const out = reply.raw;
+    out.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    const send = (event: string, data: unknown) =>
+      out.write(`event: ${event}
+data: ${JSON.stringify(data)}
+
+`);
+    try {
+      await deps.copilot.ask(req.params.id, message, history, send);
+    } catch (err) {
+      req.log.error({ err }, "copilot failed");
+      send("error", { message: "The copilot couldn't answer that; try again." });
+    } finally {
+      send("done", {});
+      out.end();
+    }
+  });
+
+  app.post<{ Params: { id: string; proposal: string } }>(
+    "/api/seller/sessions/:id/copilot/:proposal/apply",
+    async (req, reply) => {
+      if (!requireSeller(req, reply)) return;
+      if (!deps.copilot) return reply.code(503).send({ error: "No copilot" });
+      try {
+        return { ok: true, result: await deps.copilot.apply(req.params.proposal, req.params.id) };
+      } catch (err) {
+        return reply.code(422).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string; proposal: string } }>(
+    "/api/seller/sessions/:id/copilot/:proposal/dismiss",
+    async (req, reply) => {
+      if (!requireSeller(req, reply)) return;
+      deps.copilot?.dismiss(req.params.proposal);
+      return { ok: true };
+    },
+  );
 
   app.post<{ Params: { id: string } }>("/api/seller/sessions/:id/crowd", async (req, reply) => {
     if (!requireSeller(req, reply)) return;

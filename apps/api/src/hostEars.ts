@@ -11,6 +11,11 @@ import { listRules, proposeRules } from "./services/rules.js";
 // session at a time, so cards don't arrive twice.
 
 const KEEP_MS = 90_000;
+// "Hey PlusOne, remind everyone who hasn't paid" or "PlusOne: who still owes?" is
+// addressed to the copilot. "Plus one if you want it!" is the host selling, so a
+// bare "plus one" needs a comma or colon after it.
+const WAKE = /^\s*(?:(?:hey|ok|okay)[\s,]+plus\s*one\b[\s,:.!-]*|plus\s*one\s*[,:]\s*)(.+)$/i;
+const SELLING = /^(?:if|for|now|guys|everyone|lah|ya|ok)\b/i;
 
 export function createHostEars(deps: {
   db: Db;
@@ -62,6 +67,12 @@ export function createHostEars(deps: {
       list.push({ at: now, text: clean });
       heard.set(sessionId, list);
       deps.realtime.hostHeard(sessionId, clean);
+
+      const asked = clean.match(WAKE)?.[1]?.trim();
+      if (asked && asked.length > 2 && !SELLING.test(asked)) {
+        deps.realtime.copilotAsk(sessionId, asked);
+        return;
+      }
 
       const next = (tail.get(sessionId) ?? Promise.resolve())
         .then(() => think(sessionId, clean))
