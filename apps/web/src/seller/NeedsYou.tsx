@@ -23,6 +23,8 @@ export function NeedsYou({ sessionId, token }: { sessionId: string; token: strin
   const [items, setItems] = useState<AttentionDTO[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [replying, setReplying] = useState<string | null>(null);
+  const [text, setText] = useState("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: version is the refetch signal
   useEffect(() => {
@@ -67,6 +69,19 @@ export function NeedsYou({ sessionId, token }: { sessionId: string; token: strin
                   : `Refund ${formatMoney(item.refund.amountCents, item.refund.currency)} with PayPal`}
               </button>
             )}
+            {item.canReply && !item.refund && replying !== item.id && (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => {
+                  setReplying(item.id);
+                  setText("");
+                }}
+                className="rounded-full border-2 border-black bg-black px-3.5 py-1.5 text-[13px] font-bold text-white disabled:opacity-50"
+              >
+                Reply
+              </button>
+            )}
             <button
               type="button"
               disabled={busy !== null}
@@ -76,6 +91,36 @@ export function NeedsYou({ sessionId, token }: { sessionId: string; token: strin
               Done
             </button>
           </div>
+          {replying === item.id && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!text.trim()) return;
+                void act(item.id, () => api.replyAttention(item.id, text, token)).then(() =>
+                  setReplying(null),
+                );
+              }}
+              className="mt-1.5 flex items-center gap-2 rounded-[3px] bg-label px-3 py-2"
+            >
+              <input
+                // biome-ignore lint/a11y/noAutofocus: the seller just asked to reply
+                autoFocus
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={`Reply to ${item.buyerName ?? "them"}, only they see it`}
+                aria-label="Reply"
+                maxLength={500}
+                className="min-w-0 flex-1 rounded-full border-2 border-black px-3.5 py-1.5 text-sm focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={busy !== null || !text.trim()}
+                className="rounded-full bg-black px-4 py-1.5 text-sm font-bold text-white disabled:opacity-40"
+              >
+                Send
+              </button>
+            </form>
+          )}
         </div>
       ))}
       {error && <p className="rounded-[10px] bg-label px-3 py-2 text-sm text-pen">{error}</p>}

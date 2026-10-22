@@ -216,6 +216,8 @@ export interface WaitingDTO {
 
 /** Something only the seller can decide. */
 export interface AttentionDTO {
+  /** A buyer to answer (questions, change requests): the seller can reply in place. */
+  canReply?: boolean;
   id: string;
   kind: string;
   summary: string;

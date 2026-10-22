@@ -86,6 +86,8 @@ export const api = {
       body: {},
       buyerToken,
     }),
+  replyAttention: (id: string, text: string, sellerToken: string) =>
+    request<{ ok: true }>(`/api/seller/attention/${id}/reply`, { body: { text }, sellerToken }),
   sellerLogin: (password: string) =>
     request<{ token: string }>("/api/seller/login", { body: { password } }),
   sellerOrders: (sessionId: string, sellerToken: string) =>

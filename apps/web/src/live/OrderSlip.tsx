@@ -287,7 +287,11 @@ function Status({
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold">
-            {invoice ? "Pay the invoice by" : expired ? "The hold ran out" : "To pay, held for you"}
+            {invoice
+              ? "Pay the invoice by"
+              : expired
+                ? "The hold ran out"
+                : `To pay in ${order.currency}, held for you`}
           </p>
           <b className="sort text-[34px]">
             {invoice
@@ -357,8 +361,8 @@ function PayAction({
   const [status, setStatus] = useState<{ kind: "idle" | "paying" | "error"; text?: string }>({
     kind: "idle",
   });
-  // PayPal asks the buyer to agree to saving on its own page; this only asks for it.
-  const [save, setSave] = useState(true);
+  // Saving is the buyer's choice; PayPal then asks them to agree on its own page.
+  const [save, setSave] = useState(false);
   const saveRef = useRef(save);
   saveRef.current = save;
   const [otherWay, setOtherWay] = useState(false);

@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Copilot } from "./ai/copilot.js";
 import type { Db } from "./db/client.js";
-import { buyers, liveSessions, orders, rules, webhookEvents } from "./db/schema.js";
+import { attention, buyers, liveSessions, orders, rules, webhookEvents } from "./db/schema.js";
 import { seedDemo } from "./db/seed.js";
 import { type Env, integrationStatus } from "./env.js";
 import type { HostEars } from "./hostEars.js";
@@ -33,7 +33,7 @@ import {
   getSessionRow,
   setShowcase,
 } from "./services/catalog.js";
-import { recentMessages } from "./services/chat.js";
+import { insertMessage, recentMessages, toMessageDTO } from "./services/chat.js";
 import type { SampleCrowd } from "./services/crowd.js";
 import type { Notifier } from "./services/notify.js";
 import { listOrderDTOs } from "./services/orders.js";
@@ -377,6 +377,33 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
     if (sessionId) realtime.attentionChanged(sessionId);
     return { ok: true };
   });
+
+  // The seller answers the buyer right from the tape: a private message from
+  // the shop, and the item is done.
+  app.post<{ Params: { id: string }; Body: { text?: unknown } | null }>(
+    "/api/seller/attention/:id/reply",
+    async (req, reply) => {
+      if (!requireSeller(req, reply)) return;
+      const text = typeof req.body?.text === "string" ? req.body.text.trim().slice(0, 500) : "";
+      if (!text) return reply.code(400).send({ error: "Write a reply" });
+      const [item] = await db.select().from(attention).where(eq(attention.id, req.params.id));
+      if (!item?.buyerId) return reply.code(404).send({ error: "Nobody to reply to" });
+      const row = await getSessionRow(db, item.sessionId);
+      const msg = await insertMessage(db, {
+        sessionId: item.sessionId,
+        authorKind: "host",
+        authorName: row?.seller.name ?? "The shop",
+        buyerId: item.buyerId,
+        visibility: "private",
+        body: text,
+        replyToId: item.messageId,
+      });
+      realtime.message(toMessageDTO(msg));
+      await resolveAttention(db, item.id);
+      realtime.attentionChanged(item.sessionId);
+      return { ok: true };
+    },
+  );
 
   // A friendly nudge to a buyer who hasn't paid yet, in their language. Used by
   // the report's AI ("remind everyone who still owes") and by hand.

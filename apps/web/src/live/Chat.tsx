@@ -30,6 +30,13 @@ export function ChatFeed({
     messages.filter((m) => m.authorKind === "buyer").map((m) => [m.buyerId, m.authorName]),
   );
   const overlay = variant === "overlay";
+  // Choices stay tappable only on the question still waiting for an answer:
+  // once the buyer has said something after it, they go away.
+  const lastMine = messages.findLastIndex(
+    (m) => m.authorKind === "buyer" && m.buyerId !== null && m.buyerId === myBuyerId,
+  );
+  const openQuestion = messages.findLastIndex((m) => Boolean(m.options?.length));
+  const answerable = openQuestion > lastMine ? messages[openQuestion]?.id : undefined;
 
   return (
     <ol className={`flex flex-col ${overlay ? "gap-1.5" : "gap-2.5"}`} aria-live="polite">
@@ -43,7 +50,7 @@ export function ChatFeed({
                 title="From PlusOne, only you see this"
               >
                 <p className="text-[15px] leading-snug">{m.body}</p>
-                {m.options && m.options.length > 0 && (
+                {m.options && m.options.length > 0 && m.id === answerable && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {m.options.map((o) => (
                       <button
@@ -65,6 +72,22 @@ export function ChatFeed({
           return (
             <li key={m.id} className="rounded-xl bg-paper px-3 py-2">
               <div className="text-xs text-quiet">{to ? `PlusOne to ${to}` : "PlusOne"}</div>
+              <p className="leading-snug">{m.body}</p>
+            </li>
+          );
+        }
+
+        if (m.authorKind === "host" && m.visibility === "private") {
+          return overlay ? (
+            <li key={m.id} className="max-w-136 rounded-2xl bg-label px-3.5 py-2.5 text-black">
+              <div className="text-xs font-bold">{m.authorName}</div>
+              <p className="text-[15px] leading-snug">{m.body}</p>
+            </li>
+          ) : (
+            <li key={m.id} className="rounded-xl bg-pale px-3 py-2">
+              <div className="text-xs text-quiet">
+                You to {m.buyerId ? names.get(m.buyerId) : "a buyer"}
+              </div>
               <p className="leading-snug">{m.body}</p>
             </li>
           );

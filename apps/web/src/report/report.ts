@@ -16,7 +16,7 @@ const statusIs = (...value: string[]) => [
 
 export const initialReport: AgReportState = {
   selectedPageId: "tonight",
-  panels: { filters: { collapsed: true }, ai: { collapsed: false } },
+  panels: { filters: { collapsed: true }, ai: { collapsed: true } },
   pages: [
     {
       id: "tonight",

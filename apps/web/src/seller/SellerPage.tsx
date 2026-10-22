@@ -253,31 +253,49 @@ function Console({ token, onSignOut }: { token: string; onSignOut: () => void })
               className={`grid items-start gap-5 ${chatOpen ? "xl:grid-cols-2" : "xl:grid-cols-3"}`}
             >
               <Manifest title="Waiting to pay" count={owing.length}>
-                {owing.map((o, i) => (
-                  <OwingRow key={o.id} order={o} token={token} first={i === 0} />
-                ))}
-                {owing.length === 0 && waiting.length === 0 && (
-                  <Quiet>Orders land here as buyers say +1.</Quiet>
-                )}
-                {waiting.length > 0 && <InLine entries={waiting} />}
-                {cancelled.length > 0 && (
-                  <Quiet>
-                    {cancelled.length} cancelled ({cancelled.map((o) => o.buyer.name).join(", ")}),
-                    back on sale.
-                  </Quiet>
+                {owing.length + waiting.length + cancelled.length + paid.length + sent.length ===
+                0 ? (
+                  demo && live ? (
+                    <div className="py-4 text-center">
+                      <p className="text-sm text-quiet">Orders land here as buyers say +1.</p>
+                      <button
+                        type="button"
+                        disabled={crowd === "playing"}
+                        onClick={() => void playCrowd()}
+                        className="mt-2.5 rounded-full border-2 border-black bg-black px-4 py-1.5 text-sm font-bold text-white disabled:opacity-60"
+                      >
+                        {crowd === "playing" ? "Buyers are chatting…" : "Play a busy minute"}
+                      </button>
+                    </div>
+                  ) : (
+                    <Quiet>Orders land here as buyers say +1.</Quiet>
+                  )
+                ) : (
+                  (owing.length > 0 || waiting.length > 0 || cancelled.length > 0) && (
+                    <>
+                      {owing.map((o, i) => (
+                        <OwingRow key={o.id} order={o} token={token} first={i === 0} />
+                      ))}
+                      {waiting.length > 0 && <InLine entries={waiting} />}
+                      {cancelled.length > 0 && (
+                        <Quiet>
+                          {cancelled.length} cancelled (
+                          {cancelled.map((o) => o.buyer.name).join(", ")}), back on sale.
+                        </Quiet>
+                      )}
+                    </>
+                  )
                 )}
               </Manifest>
               <Manifest title="Paid, pack it" count={paid.length}>
-                {paid.map((o, i) => (
-                  <PaidRow key={o.id} order={o} token={token} first={i === 0} />
-                ))}
-                {paid.length === 0 && <Quiet>Paid orders land here, ready to pack.</Quiet>}
+                {paid.length > 0 &&
+                  paid.map((o, i) => (
+                    <PaidRow key={o.id} order={o} token={token} first={i === 0} />
+                  ))}
               </Manifest>
               <Manifest title="Sent" count={sent.length}>
-                {sent.map((o, i) => (
-                  <SentRow key={o.id} order={o} first={i === 0} />
-                ))}
-                {sent.length === 0 && <Quiet>Nothing sent yet.</Quiet>}
+                {sent.length > 0 &&
+                  sent.map((o, i) => <SentRow key={o.id} order={o} first={i === 0} />)}
               </Manifest>
             </div>
           </div>
@@ -331,7 +349,7 @@ function DemoMenu({ children }: { children: ReactNode }) {
   );
 }
 
-/** One lane of the night as a manifest: a label with one line per order. */
+/** One lane of the night as a manifest: a label with one line per order. Empty, it's just its title. */
 function Manifest({
   title,
   count,
@@ -339,7 +357,7 @@ function Manifest({
 }: {
   title: string;
   count: number;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section aria-label={title} className="label">
@@ -347,7 +365,7 @@ function Manifest({
         <h2 className="text-base font-bold">{title}</h2>
         <b className={`sort text-[28px] ${count === 0 ? "text-black/30" : ""}`}>{count}</b>
       </div>
-      <div className="zone px-4">{children}</div>
+      {children && <div className="zone px-4">{children}</div>}
     </section>
   );
 }
@@ -437,7 +455,7 @@ function OwingRow({ order, token, first }: { order: OrderDTO; token: string; fir
               <button
                 type="button"
                 onClick={() => void remind()}
-                className="font-semibold underline decoration-dotted underline-offset-2 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                className="text-quiet underline decoration-dotted underline-offset-2 hover:text-black"
               >
                 Remind
               </button>

@@ -24,6 +24,7 @@ export async function listAttention(tx: Tx, sessionId: string): Promise<Attentio
         refund = { lineId: line.id, amountCents: quote.amountCents, currency: quote.currency };
     }
     out.push({
+      canReply: Boolean(item.buyerId),
       id: item.id,
       kind: item.kind,
       summary: item.summary,
