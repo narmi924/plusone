@@ -2,18 +2,22 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 // The seller console's top bar: the live badge, the shop, and two views of
-// tonight: the labels (while selling) and the report (the numbers).
+// tonight: the labels (while selling) and the report (the numbers). The chat
+// opens beside the labels only when the seller wants to read it.
 
 export function ConsoleTabs({
   sellerName,
   current,
   ended = false,
+  chat,
   children,
 }: {
   sellerName: string;
   current: "book" | "report";
   /** The live is over (unpaid holds were invoiced). */
   ended?: boolean;
+  /** The chat column: open or not, and how many lines came in while it was closed. */
+  chat?: { open: boolean; unread: number; onToggle: () => void };
   /** Stats and actions on the right. */
   children?: ReactNode;
 }) {
@@ -39,6 +43,23 @@ export function ConsoleTabs({
       <nav className="ml-4 flex gap-5 self-stretch" aria-label="Console">
         {tab("/seller", "Tonight", current === "book")}
         {tab("/seller/report", "Report", current === "report")}
+        {chat && (
+          <button
+            type="button"
+            onClick={chat.onToggle}
+            aria-pressed={chat.open}
+            className={`flex items-center gap-1.5 px-1 text-sm font-bold ${
+              chat.open ? "text-black shadow-[inset_0_-4px_0_#000]" : "text-quiet hover:text-black"
+            }`}
+          >
+            Chat
+            {!chat.open && chat.unread > 0 && (
+              <span className="rounded-full bg-black px-1.5 text-[11px] leading-[18px] text-white tabular">
+                {chat.unread > 99 ? "99+" : chat.unread}
+              </span>
+            )}
+          </button>
+        )}
       </nav>
       <div className="ml-auto flex items-center gap-6 tabular">{children}</div>
     </header>

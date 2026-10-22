@@ -1,11 +1,9 @@
 import { formatMoney, type ProductDTO } from "@plusone/shared";
 import type { ReactNode } from "react";
-import type { Claim } from "../lib/claims";
 import { swatchFor } from "../lib/swatch";
 
 // The live room: the host's video fills a black stage and the price hangs on
-// it as a shelf label. Every "+1" that lands pops a small tag up the side.
-// Chat and the input bar float over the bottom.
+// it as a shelf label. Chat and the input bar float over the bottom.
 
 export function priceLabel(cents: number, currency: string) {
   return formatMoney(cents, currency).replace(".00", "");
@@ -15,7 +13,6 @@ export function Stage({
   product,
   currency,
   deals,
-  claims,
   video,
   header,
   ended = false,
@@ -24,8 +21,6 @@ export function Stage({
   product: ProductDTO | null;
   currency: string;
   deals: string[];
-  /** Recent "+1 Aisha, Blue M" moments, newest first. */
-  claims: Claim[];
   /** The host's camera; without it the stage shows the product in type. */
   video: ReactNode;
   header: ReactNode;
@@ -57,20 +52,6 @@ export function Stage({
               {d}
             </div>
           ))}
-          {claims.length > 0 && (
-            <ol className="mt-1 flex flex-col items-end gap-1.5" aria-label="Just ordered">
-              {claims.slice(0, 3).map((c, i) => (
-                <li
-                  key={c.id}
-                  className="animate-[rise_300ms_ease-out] rounded-full bg-label px-3 py-1.5 text-[13px] font-bold text-black shadow-[0_4px_12px_rgb(0_0_0/0.25)]"
-                  style={{ opacity: 1 - i * 0.22 }}
-                >
-                  <span className="mr-1 text-pen">+1</span>
-                  {c.who}, {c.what}
-                </li>
-              ))}
-            </ol>
-          )}
         </div>
       )}
 

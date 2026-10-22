@@ -7,12 +7,11 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { swatchStyle } from "../lib/swatch";
 import { useLive } from "../lib/useLiveRoom";
-import { AUTOPAY_SECONDS, AutoPay, useWallet } from "./Wallet";
+import { AutoPayRow, useWallet } from "./Wallet";
 
-// The buyer's side panel: their order as the shipping label it will become.
-// From the shop, to them, what's in it with a colour swatch per line, the
-// total, and while it's unpaid a yellow block whose bar drains as the hold
-// runs down. Paid labels get a barcode and a black PAID strip.
+// The buyer's side: one parcel for the whole live. Everything they've said +1
+// to goes on one shipping label; what's paid is marked PAID, what's still held
+// adds up at the bottom with the time left and one button to pay. That's all.
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -47,13 +46,31 @@ export function holdLeft(untilIso: string | null, holdMinutes: number, now: numb
   return Math.min(1, Math.max(0, (Date.parse(untilIso) - now) / (holdMinutes * 60_000)));
 }
 
-const amount = (cents: number) => (cents / 100).toFixed(2);
 export const sortNumber = (n: number) => String(n).padStart(2, "0");
-const liveDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const amount = (cents: number) => (cents / 100).toFixed(2);
+const option = (l: OrderDTO["lines"][number]) => [l.color, l.size].filter(Boolean).join(" ");
 
-function option(l: OrderDTO["lines"][number]) {
-  return [l.color, l.size].filter(Boolean).join(" ");
+/** Auto-pay counts down from when this copy of the order arrived, not the server's clock. */
+function useAutopayDeadline(order: OrderDTO | undefined) {
+  return useMemo(
+    () => (order?.autopayInMs == null ? null : Date.now() + order.autopayInMs),
+    [order],
+  );
+}
+
+type ParcelLine = OrderDTO["lines"][number] & { orderStatus: OrderDTO["status"] };
+
+/** Every item from tonight's orders, newest first: what's held, then what's paid. */
+function parcelLines(open: OrderDTO | undefined, done: OrderDTO[]): ParcelLine[] {
+  const held = (open?.lines ?? [])
+    .filter((l) => l.status === "held")
+    .map((l) => ({ ...l, orderStatus: "reserved" as const }));
+  const paid = done.flatMap((o) =>
+    o.lines
+      .filter((l) => l.status === "paid" || l.status === "refunded")
+      .map((l) => ({ ...l, orderStatus: o.status })),
+  );
+  return [...held.reverse(), ...paid];
 }
 
 export function OrderPanel({
@@ -76,181 +93,253 @@ export function OrderPanel({
   onAdd: (text: string) => void;
 }) {
   const ended = session.status === "ended";
-  const open = orders.filter((o) => o.status === "reserved");
+  const open = orders.find((o) => o.status === "reserved");
   const done = orders.filter((o) => o.status === "paid" || o.status === "shipped");
-  const empty = open.length === 0 && done.length === 0;
   const [wallet, setWallet] = useWallet(session.id, buyerToken, orders);
+  // A fully refunded order is cancelled; its items still show, struck through.
+  const refunded = orders.filter(
+    (o) => o.status === "cancelled" && o.lines.some((l) => l.status === "refunded"),
+  );
+  const lines = parcelLines(open, [...done, ...refunded]);
+  const items = lines.filter((l) => l.status !== "refunded").reduce((n, l) => n + l.qty, 0);
+  const paidCents = done.reduce((n, o) => n + o.totalCents, 0);
+  const currency = session.seller.currency;
 
   return (
-    <div className="kraft flex min-h-full flex-col gap-4 px-5 py-7 sm:px-7">
-      {empty && (
-        <EmptyLabel shop={session.seller.name} to={buyerName}>
-          {ended
-            ? "This live has ended. See you at the next one."
-            : buyerToken
-              ? "Nothing yet. Say +1 when you see something you like."
-              : "Join the chat and say +1. Your order gets written on this label."}
-        </EmptyLabel>
-      )}
-      {buyerToken &&
-        open.map((o) => (
-          <HeldOrder
-            key={o.id}
-            order={o}
-            shop={session.seller.name}
-            holdMinutes={session.seller.holdMinutes}
-            buyerToken={buyerToken}
-            paypalReady={paypalReady}
-            sandboxBuyer={sandboxBuyer}
-            wallet={wallet}
-            onWallet={setWallet}
-          />
-        ))}
-      {done.map((o, i) =>
-        // Only the newest paid label in full while nothing is held; older ones fold
-        // into a stub so the order being paid stays in view.
-        open.length === 0 && i === 0 ? (
-          <PaidOrder key={o.id} order={o} shop={session.seller.name} />
+    <div className="kraft flex min-h-full flex-col px-5 py-7 sm:px-7">
+      <section className="label" aria-label="Your parcel">
+        <div className="zone flex items-end justify-between gap-3 px-4 py-3.5">
+          <div className="min-w-0">
+            <p className="text-[13px] text-quiet">Your parcel from {session.seller.name}</p>
+            <p className="truncate text-2xl leading-tight font-extrabold">
+              To {buyerName ?? "you"}
+            </p>
+          </div>
+          {items > 0 && (
+            <div className="shrink-0 text-right">
+              <b className="sort block text-[46px]">{items}</b>
+              <span className="text-xs text-quiet">{items === 1 ? "item" : "items"}</span>
+            </div>
+          )}
+        </div>
+
+        {lines.length === 0 ? (
+          <p className="zone px-4 py-4 leading-snug">
+            {ended
+              ? "This live has ended. See you at the next one."
+              : buyerToken
+                ? "Say +1 when you see something you like. It goes in this parcel."
+                : "Join the chat and say +1. What you order goes in this parcel."}
+          </p>
         ) : (
-          <PaidStub key={o.id} order={o} shop={session.seller.name} />
-        ),
-      )}
-      {buyerToken && wallet && !ended && (
-        <AutoPay
-          sessionId={session.id}
+          <div className="zone px-4 py-1">
+            {lines.map((l, i) => (
+              <ItemRow key={l.id} line={l} first={i === 0} />
+            ))}
+            {open && <OpenExtras order={open} hasPaid={done.length > 0} />}
+          </div>
+        )}
+
+        {open ? (
+          <Status order={open} holdMinutes={session.seller.holdMinutes} wallet={wallet} />
+        ) : (
+          done.length > 0 && <Settled orders={done} paidCents={paidCents} currency={currency} />
+        )}
+
+        {buyerToken && wallet?.savedPayPal && !ended && (
+          <AutoPayRow
+            sessionId={session.id}
+            buyerToken={buyerToken}
+            wallet={wallet}
+            currency={currency}
+            onChange={setWallet}
+          />
+        )}
+      </section>
+
+      {buyerToken && open && (
+        <PayAction
+          order={open}
           buyerToken={buyerToken}
+          paypalReady={paypalReady}
+          sandboxBuyer={sandboxBuyer}
           wallet={wallet}
-          currency={session.seller.currency}
-          onChange={setWallet}
+          onWallet={setWallet}
+          paidCents={paidCents}
         />
       )}
-      {!ended && <Deals session={session} orders={orders} onAdd={buyerToken ? onAdd : null} />}
+
+      {!ended && buyerToken && <DealOffer session={session} orders={orders} onAdd={onAdd} />}
     </div>
   );
 }
 
-function Head({ shop, number, date }: { shop: string; number: number | null; date: string }) {
+function ItemRow({ line, first }: { line: ParcelLine; first: boolean }) {
+  const refunded = line.status === "refunded";
+  const tag = refunded
+    ? null
+    : line.orderStatus === "shipped"
+      ? "SENT"
+      : line.orderStatus === "paid"
+        ? "PAID"
+        : null;
   return (
-    <div className="zone grid grid-cols-[1fr_88px] sm:grid-cols-[1fr_104px]">
-      <div className="px-3.5 py-3">
-        <div className="text-xs font-semibold text-quiet">From</div>
-        <b className="block text-base leading-tight font-extrabold">{shop}</b>
-        <span className="text-[13px] text-quiet">Live, {date}</span>
+    <div
+      className={`flex items-center gap-3 py-2.5 ${first ? "" : "border-t border-line"} ${refunded ? "opacity-60" : ""}`}
+    >
+      <span className="h-8 w-8 shrink-0 rounded-md" style={swatchStyle(line.color)} />
+      <div className="min-w-0 flex-1">
+        <p className={`truncate text-base font-bold ${refunded ? "struck" : ""}`}>
+          {line.productName}
+          {line.qty > 1 && <span className="ml-1 font-semibold">x{line.qty}</span>}
+        </p>
+        <p className="text-[13px] text-quiet">
+          {refunded ? "Refunded" : option(line) || "One size"}
+        </p>
       </div>
-      <div className="sort border-l-[1.5px] border-black pt-4 text-center text-[54px] sm:text-[68px]">
-        {number === null ? <span className="text-pen">+1</span> : sortNumber(number)}
-      </div>
+      {tag ? (
+        <span className="rounded bg-black px-1.5 py-0.5 text-[11px] font-black tracking-wide text-white">
+          {tag}
+        </span>
+      ) : (
+        !refunded && (
+          <span className="text-base font-semibold tabular">
+            {amount(line.qty * line.unitPriceCents)}
+          </span>
+        )
+      )}
     </div>
   );
 }
 
-function To({ name, note }: { name: string; note: string }) {
+/** Postage and deals on what's still to pay. */
+function OpenExtras({ order, hasPaid }: { order: OrderDTO; hasPaid: boolean }) {
   return (
-    <div className="zone px-3.5 py-3">
-      <div className="text-xs font-semibold text-quiet">To</div>
-      <b className="block text-[26px] leading-tight font-extrabold">{name}</b>
-      <span className="text-[13px] text-quiet">{note}</span>
-    </div>
+    <>
+      {order.discountCents > 0 && (
+        <div className="flex justify-between border-t border-line py-2 text-[13px] font-semibold text-pen">
+          <span>Bundle deal</span>
+          <span className="tabular">−{amount(order.discountCents)}</span>
+        </div>
+      )}
+      {(order.shippingCents > 0 || hasPaid) && (
+        <div className="flex justify-between border-t border-line py-2 text-[13px] text-quiet">
+          <span>Postage{order.shipsWithOrderNumber ? ", same parcel" : ""}</span>
+          <span className="tabular">
+            {order.shippingCents > 0 ? amount(order.shippingCents) : "free"}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 
-function EmptyLabel({
-  shop,
-  to,
-  children,
+/** The bottom of the label while something is held: how much, and how long. */
+function Status({
+  order,
+  holdMinutes,
+  wallet,
 }: {
-  shop: string;
-  to: string | null;
-  children: ReactNode;
+  order: OrderDTO;
+  holdMinutes: number;
+  wallet: WalletDTO | null;
 }) {
+  const now = useNow(250);
+  const deadline = useAutopayDeadline(order);
+  const autopayLeft = wallet?.autopay && deadline ? Math.max(0, deadline - now) : null;
+  const invoice = order.invoice?.status === "sent" ? order.invoice : null;
+  const expired = order.holdExpiresAt ? Date.parse(order.holdExpiresAt) <= now : false;
+  const total = <b className="sort text-[46px]">{formatMoney(order.totalCents, order.currency)}</b>;
+
+  if (autopayLeft !== null) {
+    return (
+      <section aria-label="Auto-pay countdown" className="zone bg-black px-4 py-3 text-white">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold">Auto-pay with your saved PayPal</p>
+            <b className="sort text-[34px]">
+              {autopayLeft > 0 ? `in ${Math.ceil(autopayLeft / 1000)}s` : "paying…"}
+            </b>
+          </div>
+          {total}
+        </div>
+        <div className="drain on-dark mt-2.5">
+          <i style={{ width: `${Math.min(1, autopayLeft / 15_000) * 100}%` }} />
+        </div>
+      </section>
+    );
+  }
   return (
-    <section className="label" aria-label="Your order">
-      <Head shop={shop} number={null} date={liveDate(new Date().toISOString())} />
-      <To name={to ?? "You"} note="Your address comes from PayPal when you pay" />
-      <p className="zone px-3.5 py-4 text-[15px] leading-snug">{children}</p>
+    <section aria-label="Held for you" className="zone bg-sticker px-4 py-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold">
+            {invoice ? "Pay the invoice by" : expired ? "The hold ran out" : "To pay, held for you"}
+          </p>
+          <b className="sort text-[34px]">
+            {invoice
+              ? dueLabel(invoice.dueAt)
+              : order.holdExpiresAt && !expired
+                ? countdown(order.holdExpiresAt, now)
+                : "0:00"}
+          </b>
+        </div>
+        {total}
+      </div>
+      {!invoice && (
+        <div className="drain mt-2.5">
+          <i style={{ width: `${holdLeft(order.holdExpiresAt, holdMinutes, now) * 100}%` }} />
+        </div>
+      )}
     </section>
   );
 }
 
-function Lines({ lines, muted = false }: { lines: OrderDTO["lines"]; muted?: boolean }) {
+/** Nothing left to pay: the label gets its barcode. */
+function Settled({
+  orders,
+  paidCents,
+  currency,
+}: {
+  orders: OrderDTO[];
+  paidCents: number;
+  currency: string;
+}) {
+  const sent = orders.find((o) => o.status === "shipped" && o.tracking);
   return (
     <>
-      {lines.map((l) => (
-        <div
-          key={l.id}
-          className="grid grid-cols-[28px_1fr_auto] items-center gap-2.5 border-t border-line py-2 first:border-t-0"
-        >
-          <span className="h-7 w-7 rounded-[7px]" style={swatchStyle(l.color)} />
-          <span className={`min-w-0 ${muted ? "struck" : ""}`}>
-            <b className="block truncate font-bold">{l.productName}</b>
-            <small className="text-[13px] text-quiet">
-              {[option(l), l.qty > 1 ? `${l.qty} pcs` : ""].filter(Boolean).join(", ") ||
-                "One size"}
-            </small>
-          </span>
-          <span className="font-bold tabular">{amount(l.qty * l.unitPriceCents)}</span>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function Totals({ order }: { order: OrderDTO }) {
-  return (
-    <>
-      {order.discountCents > 0 && (
-        <div className="grid grid-cols-[28px_1fr_auto] gap-2.5 border-t border-line py-2 text-pen">
-          <span />
-          <span className="font-bold">Bundle deal</span>
-          <span className="font-bold tabular">−{amount(order.discountCents)}</span>
-        </div>
-      )}
-      <div className="grid grid-cols-[28px_1fr_auto] gap-2.5 border-t border-line py-2">
-        <span />
-        <span>
-          {order.shipsWithOrderNumber
-            ? `Postage: one parcel with #${sortNumber(order.shipsWithOrderNumber)}`
-            : "Postage"}
-        </span>
-        <span className="font-bold tabular">
-          {order.shipsWithOrderNumber ? "free" : amount(order.shippingCents)}
+      <div className="zone px-4 py-2.5">
+        <div className="barcode" aria-hidden="true" />
+      </div>
+      <div className="zone flex items-center justify-between gap-3 bg-black px-4 py-3 text-white">
+        <b className="sort text-[26px]">{sent ? "SENT" : "PAID"}</b>
+        <span className="truncate text-right text-[13px]">
+          {sent?.tracking
+            ? `${sent.tracking.carrier}, ${sent.tracking.number}`
+            : `${formatMoney(paidCents, currency)} with PayPal`}
         </span>
       </div>
     </>
   );
 }
 
-function TotalRow({ order }: { order: OrderDTO }) {
-  return (
-    <div className="zone flex items-baseline justify-between px-3.5 py-3">
-      <span className="font-bold">Total</span>
-      <b className="text-[36px] leading-none font-black tabular [font-stretch:75%]">
-        {formatMoney(order.totalCents, order.currency)}
-      </b>
-    </div>
-  );
-}
-
-function HeldOrder({
+function PayAction({
   order,
-  shop,
-  holdMinutes,
   buyerToken,
   paypalReady,
   sandboxBuyer,
   wallet,
   onWallet,
+  paidCents,
 }: {
   order: OrderDTO;
-  shop: string;
-  holdMinutes: number;
   buyerToken: string;
   paypalReady: boolean;
   sandboxBuyer: { email: string; password: string } | null;
   wallet: WalletDTO | null;
   onWallet: (w: WalletDTO) => void;
+  paidCents: number;
 }) {
-  const now = useNow(250);
   const upsertOrder = useLive((s) => s.upsertOrder);
   const [status, setStatus] = useState<{ kind: "idle" | "paying" | "error"; text?: string }>({
     kind: "idle",
@@ -260,23 +349,11 @@ function HeldOrder({
   const saveRef = useRef(save);
   saveRef.current = save;
   const [otherWay, setOtherWay] = useState(false);
-  // A new hold scrolls into view, above the labels already paid.
-  const here = useRef<HTMLElement>(null);
-  useEffect(() => {
-    here.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, []);
-  const expired = order.holdExpiresAt ? new Date(order.holdExpiresAt).getTime() <= now : false;
-  // After the live ends, unpaid holds become a PayPal invoice with its own due date.
+  const deadline = useAutopayDeadline(order);
+  const counting = Boolean(wallet?.autopay && deadline);
   const invoice = order.invoice?.status === "sent" ? order.invoice : null;
   const saved = wallet?.savedPayPal ?? null;
-  // Auto-pay is counting down: the saved PayPal pays when it reaches zero. Timed
-  // from when this copy of the order arrived, not the server's clock.
-  const deadline = useMemo(
-    () => (order.autopayInMs === null ? null : Date.now() + order.autopayInMs),
-    [order],
-  );
-  const autopayAt = wallet?.autopay ? deadline : null;
-  const autopayLeft = autopayAt ? Math.max(0, autopayAt - now) : null;
+  const total = formatMoney(order.totalCents, order.currency);
 
   const failed = (err: unknown) =>
     setStatus({
@@ -317,153 +394,99 @@ function HeldOrder({
     }
   }
 
-  return (
-    <section ref={here} aria-label="Held for you" className="scroll-mt-6">
-      <div className="label">
-        <Head shop={shop} number={order.number} date={liveDate(order.createdAt)} />
-        <To name={order.buyer.name} note="Your address comes from PayPal when you pay" />
-        <div className="zone px-3.5 py-1">
-          <Lines lines={order.lines.filter((l) => l.status === "held")} />
-          <Totals order={order} />
-        </div>
-        <TotalRow order={order} />
-        {autopayLeft !== null ? (
-          <div className="zone bg-black px-3.5 py-3 text-white">
-            <div className="flex items-baseline justify-between gap-3">
-              <b className="sort text-[30px]">
-                {autopayLeft > 0 ? `Auto-pay in ${Math.ceil(autopayLeft / 1000)}s` : "Paying…"}
-              </b>
-              <span className="text-right text-[13px] font-semibold">with your saved PayPal</span>
-            </div>
-            <div className="drain on-dark mt-2 h-2">
-              <i
-                style={{ width: `${Math.min(1, autopayLeft / (AUTOPAY_SECONDS * 1000)) * 100}%` }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="zone bg-sticker px-3.5 py-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <b className="sort text-[30px]">
-                {invoice
-                  ? `Due ${dueLabel(invoice.dueAt)}`
-                  : expired
-                    ? "Hold ended"
-                    : order.holdExpiresAt
-                      ? `Held ${countdown(order.holdExpiresAt, now)}`
-                      : "Held"}
-              </b>
-              <span className="text-right text-[13px] font-semibold">
-                {invoice ? "pay the invoice to keep it" : "then it goes back on sale"}
-              </span>
-            </div>
-            {!invoice && (
-              <div className="drain mt-2 h-2">
-                <i style={{ width: `${holdLeft(order.holdExpiresAt, holdMinutes, now) * 100}%` }} />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+  const quiet = (children: ReactNode) => (
+    <p className="mt-2 text-center text-xs text-black/65">{children}</p>
+  );
+  const link = "font-semibold underline decoration-dotted underline-offset-2";
 
-      <div className="mt-4 min-h-12">
-        {invoice ? (
-          <>
-            <a
-              href={invoice.payUrl ?? undefined}
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-full bg-[#ffc439] py-3.5 text-center text-[15px] font-bold text-black hover:brightness-95"
-            >
-              Pay the PayPal invoice
-            </a>
-            <p className="mt-2 text-center text-xs text-black/70">
-              The live has ended. We emailed you this invoice too; your items stay held until it's
-              due.
-            </p>
-          </>
-        ) : status.kind === "paying" ? (
-          <p className="py-3 text-center text-sm font-semibold">
-            {status.text ?? "Confirming your payment with PayPal…"}
-          </p>
-        ) : autopayLeft !== null ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-center text-sm leading-snug">
-              Changing something? Just say it in the chat; the countdown starts again.
-            </p>
-            <button
-              type="button"
-              onClick={() => void payMyself()}
-              className="rounded-full border-2 border-black bg-label py-2.5 text-sm font-bold"
-            >
-              Stop auto-pay, I'll pay myself
-            </button>
-          </div>
-        ) : saved && !otherWay ? (
-          <div className="flex flex-col items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => void paySaved()}
-              className="w-full rounded-full bg-[#ffc439] py-3.5 text-[15px] font-bold text-black hover:brightness-95"
-            >
-              Pay {formatMoney(order.totalCents, order.currency)} with saved PayPal
-            </button>
-            <p className="text-xs text-black/70">
-              {saved}. One tap, no PayPal window.{" "}
-              <button
-                type="button"
-                onClick={() => setOtherWay(true)}
-                className="font-semibold underline decoration-dotted underline-offset-2"
-              >
+  return (
+    <div className="mt-4">
+      {invoice ? (
+        <>
+          <a
+            href={invoice.payUrl ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="block rounded-full bg-[#ffc439] py-3.5 text-center text-[15px] font-bold text-black hover:brightness-95"
+          >
+            Pay the PayPal invoice
+          </a>
+          {quiet("The live has ended. Your items stay held until the invoice is due.")}
+        </>
+      ) : status.kind === "paying" ? (
+        <p className="py-3 text-center text-sm font-semibold">
+          {status.text ?? "Confirming your payment with PayPal…"}
+        </p>
+      ) : counting ? (
+        <button
+          type="button"
+          onClick={() => void payMyself()}
+          className="w-full rounded-full border-2 border-black bg-label py-3 text-sm font-bold"
+        >
+          Stop auto-pay, I'll pay myself
+        </button>
+      ) : saved && !otherWay ? (
+        <>
+          <button
+            type="button"
+            onClick={() => void paySaved()}
+            className="w-full rounded-full bg-[#ffc439] py-3.5 text-[15px] font-bold text-black hover:brightness-95"
+          >
+            Pay {total} with saved PayPal
+          </button>
+          {quiet(
+            <>
+              {paidCents > 0 && (
+                <span className="mr-3">Paid so far: {formatMoney(paidCents, order.currency)}</span>
+              )}
+              <button type="button" onClick={() => setOtherWay(true)} className={link}>
                 Pay another way
               </button>
-            </p>
-          </div>
-        ) : paypalReady ? (
-          <>
-            <PayPalOneTimePaymentButton
-              type="pay"
-              presentationMode="auto"
-              createOrder={async () => {
-                setStatus({ kind: "idle" });
-                const { paypalOrderId } = await api.startPayPal(
-                  order.id,
-                  buyerToken,
-                  !saved && saveRef.current,
-                );
-                return { orderId: paypalOrderId };
-              }}
-              onApprove={onApprove}
-              onCancel={() => setStatus({ kind: "idle" })}
-              onError={(e) =>
-                setStatus({ kind: "error", text: e.message || "PayPal couldn't start. Try again." })
-              }
-            />
-            {!saved && (
-              <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[13px] font-semibold">
-                <input
-                  type="checkbox"
-                  checked={save}
-                  onChange={(e) => setSave(e.target.checked)}
-                  className="size-4 accent-black"
-                />
-                Save my PayPal for one-tap next time
-              </label>
-            )}
-          </>
-        ) : (
-          <p className="py-3 text-center text-sm text-black/70">Loading PayPal…</p>
-        )}
-      </div>
+            </>,
+          )}
+        </>
+      ) : paypalReady ? (
+        <>
+          <PayPalOneTimePaymentButton
+            type="pay"
+            presentationMode="auto"
+            createOrder={async () => {
+              setStatus({ kind: "idle" });
+              const { paypalOrderId } = await api.startPayPal(
+                order.id,
+                buyerToken,
+                !saved && saveRef.current,
+              );
+              return { orderId: paypalOrderId };
+            }}
+            onApprove={onApprove}
+            onCancel={() => setStatus({ kind: "idle" })}
+            onError={(e) =>
+              setStatus({ kind: "error", text: e.message || "PayPal couldn't start. Try again." })
+            }
+          />
+          {!saved && (
+            <label className="mt-2.5 flex cursor-pointer items-center justify-center gap-2 text-[13px]">
+              <input
+                type="checkbox"
+                checked={save}
+                onChange={(e) => setSave(e.target.checked)}
+                className="size-4 accent-black"
+              />
+              Save my PayPal for one tap next time
+            </label>
+          )}
+          {sandboxBuyer && <SandboxLogin {...sandboxBuyer} />}
+        </>
+      ) : (
+        <p className="py-3 text-center text-sm text-black/70">Loading PayPal…</p>
+      )}
       {status.kind === "error" && (
         <p className="mt-2 rounded-[10px] bg-label px-3 py-2 text-sm font-semibold text-pen">
           {status.text}
         </p>
       )}
-      {sandboxBuyer && (!saved || otherWay) && autopayLeft === null && (
-        <SandboxLogin {...sandboxBuyer} />
-      )}
-    </section>
+    </div>
   );
 }
 
@@ -475,111 +498,32 @@ function SandboxLogin({ email, password }: { email: string; password: string }) 
       () => setCopied(label),
       () => undefined,
     );
-  const row = (label: string, text: string) => (
-    <div className="flex items-baseline gap-2">
-      <span className="w-18 shrink-0 text-quiet">{label}</span>
-      <button
-        type="button"
-        onClick={() => void copy(label, text)}
-        className="min-w-0 text-left font-semibold break-all underline decoration-dotted underline-offset-2"
-        title="Copy"
-      >
-        {text}
-      </button>
-      {copied === label && <span className="text-xs text-paid">copied</span>}
-    </div>
-  );
-  return (
-    <div className="mt-3 rounded-[10px] bg-label/85 px-3.5 py-3 text-[13px] leading-relaxed">
-      <p className="mb-1 font-bold">Just trying it? PayPal is in test mode. Log in with:</p>
-      {row("email", email)}
-      {row("password", password)}
-    </div>
-  );
-}
-
-const PAID_VIA: Record<NonNullable<OrderDTO["paidVia"]>, string> = {
-  checkout: "with PayPal",
-  saved: "with saved PayPal",
-  auto: "auto-paid with PayPal",
-  invoice: "PayPal invoice",
-};
-
-/** A paid label folded to one line: number, what's in it, PAID. Tap to unfold. */
-function PaidStub({ order, shop }: { order: OrderDTO; shop: string }) {
-  const [unfolded, setUnfolded] = useState(false);
-  if (unfolded) return <PaidOrder order={order} shop={shop} />;
-  const items = order.lines
-    .filter((l) => l.status === "paid")
-    .map((l) => [l.productName, option(l)].filter(Boolean).join(", "))
-    .join("; ");
-  return (
+  const value = (label: string, text: string) => (
     <button
       type="button"
-      onClick={() => setUnfolded(true)}
-      aria-label={`Order ${order.number}, ${order.status}`}
-      className="label grid grid-cols-[56px_1fr_auto] items-stretch text-left"
+      onClick={() => void copy(label, text)}
+      className="font-semibold break-all underline decoration-dotted underline-offset-2"
+      title="Copy"
     >
-      <span className="sort grid place-items-center border-r-[1.5px] border-black text-[30px]">
-        {sortNumber(order.number)}
-      </span>
-      <span className="min-w-0 px-3 py-2">
-        <b className="block truncate text-sm font-extrabold">{items}</b>
-        <small className="text-xs text-quiet">
-          {formatMoney(order.totalCents, order.currency)}, {PAID_VIA[order.paidVia ?? "checkout"]}
-        </small>
-      </span>
-      <b className="sort grid place-items-center bg-black px-3.5 text-[20px] text-white">
-        {order.status === "shipped" ? "SHIPPED" : "PAID"}
-      </b>
+      {copied === label ? "copied" : text}
     </button>
   );
-}
-
-function PaidOrder({ order, shop }: { order: OrderDTO; shop: string }) {
-  const shipped = order.status === "shipped";
   return (
-    <section className="label" aria-label={`Order ${order.number}, paid`}>
-      <Head shop={shop} number={order.number} date={liveDate(order.createdAt)} />
-      <To
-        name={order.buyer.name}
-        note={
-          order.shipTo
-            ? `Sending to ${order.shipTo}`
-            : order.shipsWithOrderNumber
-              ? `In the same parcel as #${sortNumber(order.shipsWithOrderNumber)}`
-              : "Address from your PayPal"
-        }
-      />
-      <div className="zone px-3.5 py-1">
-        <Lines lines={order.lines.filter((l) => l.status === "paid")} />
-        <Totals order={order} />
-      </div>
-      <TotalRow order={order} />
-      <div className="zone px-3.5 py-2.5">
-        <div className="barcode" aria-hidden="true" />
-      </div>
-      <div className="zone flex items-center justify-between gap-3 bg-black px-3.5 py-3 text-white">
-        <b className="sort text-[26px]">{shipped ? "SHIPPED" : "PAID"}</b>
-        <span className="truncate text-right text-[13px]">
-          {shipped && order.tracking
-            ? `${order.tracking.carrier}, ${order.tracking.number}`
-            : `${PAID_VIA[order.paidVia ?? "checkout"]}${order.captureId ? `, ref ${order.captureId}` : ""}`}
-        </span>
-      </div>
-    </section>
+    <p className="mt-3 text-center text-xs leading-relaxed text-black/70">
+      PayPal is in test mode. Log in with {value("email", email)} and {value("password", password)}
+    </p>
   );
 }
 
-/** The host's deals; if the buyer has one piece of a bundle, offer the other. */
-function Deals({
+/** One piece of the host's bundle in the parcel: offer the other. */
+function DealOffer({
   session,
   orders,
   onAdd,
 }: {
   session: SessionDTO;
   orders: OrderDTO[];
-  onAdd: ((text: string) => void) | null;
+  onAdd: (text: string) => void;
 }) {
   const mine = new Set(
     orders.flatMap((o) =>
@@ -587,41 +531,37 @@ function Deals({
     ),
   );
   const names = new Map(session.products.map((p) => [p.code, p.name]));
+  const offers = session.bundles.flatMap((b) => {
+    const missing = b.productCodes.filter((c) => !mine.has(c));
+    const name = names.get(missing[0] ?? "");
+    return missing.length > 0 && missing.length < b.productCodes.length && name
+      ? [{ summary: b.summary, name }]
+      : [];
+  });
   return (
     <>
-      {session.bundles.map((b) => {
-        const missing = b.productCodes.filter((c) => !mine.has(c));
-        if (missing.length === 0) return null;
-        const offer = missing.length < b.productCodes.length ? names.get(missing[0] ?? "") : null;
-        return (
-          <div
-            key={b.summary}
-            className="flex items-center gap-3 rounded-[10px] border-2 border-dashed border-black bg-label px-3.5 py-3"
+      {offers.map((o) => (
+        <div
+          key={o.summary}
+          className="mt-4 flex items-center gap-3 rounded-[10px] border-2 border-dashed border-black/60 px-3.5 py-2.5"
+        >
+          <span className="min-w-0 flex-1 text-sm font-bold">{o.summary}</span>
+          <button
+            type="button"
+            onClick={() => onAdd(`+1 ${o.name} `)}
+            className="shrink-0 rounded-full border-2 border-black bg-label px-3 py-1.5 text-[13px] font-bold"
           >
-            <div className="min-w-0 flex-1 text-sm">
-              <b className="block font-extrabold">{b.summary}</b>
-              The host's deal tonight.
-            </div>
-            {offer && onAdd && (
-              <button
-                type="button"
-                onClick={() => onAdd(`+1 ${offer} `)}
-                className="shrink-0 rounded-full border-2 border-black bg-sticker px-3 py-2 text-[13px] font-bold"
-              >
-                Add the {offer.split(" ").at(-1)?.toLowerCase()}
-              </button>
-            )}
-          </div>
-        );
-      })}
+            Add the {o.name.split(" ").at(-1)?.toLowerCase()}
+          </button>
+        </div>
+      ))}
     </>
   );
 }
 
-/** Phones: the order as a small label above the input; tapping it opens the full one. */
+/** Phones: the parcel as a small bar above the input; tapping it opens the whole label. */
 export function MyOrderBar({
   orders,
-  holdMinutes,
   onOpen,
 }: {
   orders: OrderDTO[];
@@ -630,27 +570,24 @@ export function MyOrderBar({
 }) {
   const now = useNow();
   const open = orders.find((o) => o.status === "reserved");
-  const autopayAt = useMemo(
-    () => (open?.autopayInMs == null ? null : Date.now() + open.autopayInMs),
-    [open],
-  );
+  const autopayAt = useAutopayDeadline(open);
   if (!open) return null;
-  const items = open.lines
-    .filter((l) => l.status === "held")
-    .map((l) => [l.productName, option(l)].filter(Boolean).join(", "))
-    .join("; ");
+  const done = orders.filter((o) => o.status === "paid" || o.status === "shipped");
+  const items = parcelLines(open, done)
+    .filter((l) => l.status !== "refunded")
+    .reduce((n, l) => n + l.qty, 0);
   const invoice = open.invoice?.status === "sent" ? open.invoice : null;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full grid-cols-[52px_1fr_auto] overflow-hidden rounded-[10px] border-2 border-black bg-label text-left text-black shadow-[0_10px_30px_rgb(0_0_0/0.35)] lg:hidden"
+      className="flex w-full items-stretch overflow-hidden rounded-[10px] border-2 border-black bg-label text-left text-black shadow-[0_10px_30px_rgb(0_0_0/0.35)] lg:hidden"
     >
-      <span className="sort grid place-items-center border-r-[1.5px] border-black text-[30px]">
-        {sortNumber(open.number)}
-      </span>
-      <span className="min-w-0 px-2.5 py-2">
-        <b className="font-extrabold">{formatMoney(open.totalCents, open.currency)}</b>{" "}
+      <span className="min-w-0 flex-1 px-3 py-2">
+        <small className="block text-xs text-quiet">
+          Your parcel, {items} {items === 1 ? "item" : "items"}
+        </small>
+        <b className="font-extrabold">To pay {formatMoney(open.totalCents, open.currency)}</b>{" "}
         <span className="text-sm">
           {invoice
             ? `due ${dueLabel(invoice.dueAt)}`
@@ -660,14 +597,8 @@ export function MyOrderBar({
                 ? `held ${countdown(open.holdExpiresAt, now)}`
                 : "held"}
         </span>
-        <small className="block truncate text-xs text-quiet">{items}</small>
-        {!invoice && (
-          <span className="drain mt-1 block h-[5px]">
-            <i style={{ width: `${holdLeft(open.holdExpiresAt, holdMinutes, now) * 100}%` }} />
-          </span>
-        )}
       </span>
-      <span className="grid place-items-center border-l-[1.5px] border-black bg-sticker px-4 text-[15px] font-extrabold">
+      <span className="grid place-items-center bg-[#ffc439] px-5 text-[15px] font-extrabold">
         Pay
       </span>
     </button>

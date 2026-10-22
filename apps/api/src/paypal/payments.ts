@@ -431,6 +431,13 @@ export function createPayments(deps: {
       if (!order) throw new Error(`Order ${payment.orderId} missing`);
 
       const stock = await sellPaidLines(tx, payment, order);
+      // Joined with just a name: PayPal now tells us where receipts and invoices go.
+      if (extra.payerEmail) {
+        await tx
+          .update(buyers)
+          .set({ email: extra.payerEmail })
+          .where(and(eq(buyers.id, order.buyerId), eq(buyers.email, "")));
+      }
       await tx
         .update(orders)
         .set({ status: "paid", paidAt: new Date() })

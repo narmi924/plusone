@@ -9,15 +9,7 @@ import { api } from "../lib/api";
 
 const EVERY_MS = 2_000;
 
-export function WatchControl({
-  sessionId,
-  token,
-  track,
-}: {
-  sessionId: string;
-  token: string;
-  track: LocalVideoTrack | null;
-}) {
+export function useWatch(sessionId: string, token: string, track: LocalVideoTrack | null) {
   const [on, setOn] = useState(false);
   const [look, setLook] = useState<Extract<LookDTO, { busy: false }> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,42 +49,14 @@ export function WatchControl({
     };
   }, [on, track, sessionId, token]);
 
-  const watching = on && Boolean(track);
-  return (
-    <div
-      className={`shrink-0 rounded-[10px] border-2 border-black p-3 ${watching ? "bg-pale" : "bg-label"}`}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          setOn(!on);
-          setLook(null);
-        }}
-        aria-pressed={on}
-        className="w-full text-left text-sm leading-tight font-extrabold"
-      >
-        {watching ? "Watching your camera" : "Let PlusOne watch"}
-      </button>
-      <p className="mt-1.5 min-h-9 text-[13px] leading-snug" aria-live="polite">
-        {!on ? (
-          <span className="text-quiet">
-            Hold a product up to the camera and it goes on screen for buyers.
-          </span>
-        ) : !track ? (
-          <span>Turn your camera on first.</span>
-        ) : look?.product ? (
-          <span>
-            {look.onScreen ? "On screen: " : "I see "}
-            <b>{look.product.name}</b>
-            {look.onScreen ? "" : ", hold it there…"}
-          </span>
-        ) : look?.saw ? (
-          <span className="opacity-70">{look.saw}</span>
-        ) : (
-          <span className="opacity-70">Hold up the next item.</span>
-        )}
-      </p>
-      {error && <p className="mt-1 text-sm text-pen">{error}</p>}
-    </div>
-  );
+  return {
+    on,
+    watching: on && Boolean(track),
+    look,
+    error,
+    toggle: () => {
+      setOn((v) => !v);
+      setLook(null);
+    },
+  };
 }

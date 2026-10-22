@@ -1,13 +1,12 @@
 import { PayPalProvider } from "@paypal/react-paypal-js/sdk-v6";
 import type { BuyerDTO, PublicConfig } from "@plusone/shared";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { api } from "../lib/api";
-import { recentClaims } from "../lib/claims";
 import { BUYER_TOKEN_KEY, readStored, writeStored } from "../lib/storage";
 import { useLive, useLiveRoom } from "../lib/useLiveRoom";
 import { TrackAudio, TrackVideo, useWatchLive } from "../lib/video";
-import { ChatFeed, ChatInput, PinnedHowTo, tryLines } from "./Chat";
+import { ChatFeed, ChatInput, tryLines } from "./Chat";
 import { MyOrderBar, OrderPanel } from "./OrderSlip";
 import { Stage } from "./Stage";
 
@@ -18,12 +17,9 @@ export function LivePage() {
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState<{ text: string; n: number } | null>(null);
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     api.config().then(setConfig, () => setConfig(null));
-    const t = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -43,11 +39,6 @@ export function LivePage() {
   const thinking = useLive((s) => s.thinking);
   const connected = useLive((s) => s.connected);
   const watch = useWatchLive(session?.id ?? null, session?.hostVideoOn ?? false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: now ticks so old +1s fade out
-  const claims = useMemo(
-    () => recentClaims(messages, { limit: 3, withinMs: 60_000 }),
-    [messages, now],
-  );
 
   if (error) return <p className="p-8 text-quiet">This live couldn't be loaded: {error}</p>;
   if (!session) return <p className="p-8 text-quiet">Joining the live…</p>;
@@ -77,7 +68,6 @@ export function LivePage() {
         currency={session.seller.currency}
         deals={session.deals}
         ended={session.status === "ended"}
-        claims={claims}
         video={
           watch.video && <TrackVideo track={watch.video} className="h-full w-full object-cover" />
         }
@@ -88,12 +78,12 @@ export function LivePage() {
             >
               {session.status === "ended" ? "ENDED" : "LIVE"}
             </span>
-            <div className="min-w-0 rounded-xl bg-black/40 px-3 py-1.5">
-              <h1 className="truncate text-[17px] leading-tight font-bold">
-                {session.seller.name}
-              </h1>
-              <p className="hidden truncate text-[13px] text-white/80 sm:block">{session.title}</p>
-            </div>
+            <h1 className="over-video truncate text-[17px] font-bold">{session.seller.name}</h1>
+            {watch.video && (
+              <span className="over-video text-[13px] text-white/75 tabular">
+                {watch.viewers} watching
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-2">
               {watch.audio && watch.soundBlocked && (
                 <button
@@ -104,11 +94,6 @@ export function LivePage() {
                   Tap for sound
                 </button>
               )}
-              {watch.video && (
-                <span className="rounded-full bg-black/45 px-2.5 py-1.5 text-[13px] tabular">
-                  {watch.viewers} watching
-                </span>
-              )}
               <span
                 className={`h-2 w-2 rounded-full ${connected ? "bg-paid" : "bg-white/40"}`}
                 title={connected ? "Connected" : "Reconnecting"}
@@ -117,16 +102,6 @@ export function LivePage() {
           </div>
         }
       >
-        {session.status !== "ended" && (
-          <PinnedHowTo
-            shop={session.seller.name}
-            lines={tryLines(
-              product,
-              session.products.find((p) => p.id === session.previousProductId) ?? null,
-            )}
-            {...(activeToken ? { onTry: addToChat } : {})}
-          />
-        )}
         {/* newest at the bottom; older lines fade out at the top */}
         <div className="flex max-h-[30vh] w-full sm:max-h-[34vh] max-w-136 flex-col justify-end overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_20%)]">
           <ChatFeed
@@ -149,7 +124,16 @@ export function LivePage() {
             This live has ended. Thanks for watching!
           </p>
         ) : activeToken ? (
-          <ChatInput onSend={send} draft={draft} />
+          <ChatInput
+            onSend={send}
+            draft={draft}
+            placeholder={`Say +1, or “${
+              tryLines(
+                product,
+                session.products.find((p) => p.id === session.previousProductId) ?? null,
+              )[1] ?? "make it 2"
+            }”`}
+          />
         ) : (
           <JoinBar
             onJoined={(t, b) => {
@@ -212,7 +196,6 @@ export function LivePage() {
 
 function JoinBar({ onJoined }: { onJoined: (token: string, buyer: BuyerDTO) => void }) {
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -221,7 +204,7 @@ function JoinBar({ onJoined }: { onJoined: (token: string, buyer: BuyerDTO) => v
     setBusy(true);
     setError(null);
     try {
-      const { token, buyer } = await api.join(name, email);
+      const { token, buyer } = await api.join(name, "");
       onJoined(token, buyer);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -230,36 +213,23 @@ function JoinBar({ onJoined }: { onJoined: (token: string, buyer: BuyerDTO) => v
     }
   }
 
-  const field =
-    "min-w-0 flex-1 rounded-full bg-white/95 px-4 py-3 text-[15px] text-black placeholder:text-quiet focus:outline-none focus-visible:ring-2 focus-visible:ring-sticker";
+  // A name for the chat is all it takes; PayPal brings the rest at checkout.
   return (
     <form onSubmit={submit}>
-      <p className="over-video mb-2 text-sm text-white/90">
-        Join to order. Your receipt goes to your email.
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex items-center gap-3">
         <input
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
+          placeholder="Your name, to join the chat"
           aria-label="Your name"
           maxLength={40}
-          className={field}
-        />
-        <input
-          required
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          aria-label="Email"
-          className={field}
+          className="h-13 min-w-0 flex-1 rounded-full bg-white/95 px-5 text-[15px] text-black placeholder:text-quiet focus:outline-none focus-visible:ring-2 focus-visible:ring-sticker"
         />
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full border-2 border-black bg-sticker px-6 py-3 font-extrabold text-black disabled:opacity-50"
+          className="h-13 rounded-full border-2 border-black bg-sticker px-6 font-extrabold text-black disabled:opacity-50"
         >
           Join
         </button>

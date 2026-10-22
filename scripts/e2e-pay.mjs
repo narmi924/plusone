@@ -36,7 +36,6 @@ await seller.getByRole("main", { name: "Tonight's order book" }).waitFor();
 const page = await (await ctxFor({ width: 1440, height: 900 })).newPage();
 await page.goto(`${WEB}/live/lumicloset`);
 await page.getByLabel("Your name").fill("Mei");
-await page.getByLabel("Email").fill("mei@example.com");
 await page.getByRole("button", { name: "Join" }).click();
 const say = async (t) => {
   await page.getByLabel("Chat message").fill(t);

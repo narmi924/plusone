@@ -6,7 +6,7 @@ Small sellers sell clothes, snacks and handmade things on live video. Their buye
 
 PlusOne sits in the seller's own live page. It follows what is on screen and what each buyer said before, keeps one correct order per buyer, asks only when it really can't tell, and collects with PayPal. The host just sells.
 
-![The buyer's live room: chat over the video, the price on a shelf label, and the buyer's order as a shipping label with the PayPal button](docs/images/buyer-live.jpg)
+![The buyer's live room: chat over the video, the price on a shelf label, and the buyer's parcel for the night with one item paid, one held, and one button to pay](docs/images/buyer-live.jpg)
 
 ## How it's different
 
@@ -27,28 +27,29 @@ Holds, waitlists, per-person limits, reminders and invoices work the way sellers
 
 **Buyers** (`/live/lumicloset`)
 
-- The live video with the chat over it, a pinned "how to order" with lines to try, and the price on a shelf label.
-- Their order as the shipping label it will become: what's held for them with a colour swatch per item, deals, postage, and a yellow hold bar that drains until they pay with PayPal. Paid orders get a barcode; shipped ones show the carrier and tracking number.
+- The live video with the chat over it and the price on a shelf label. The chat box suggests a line to try for what's on screen.
+- A name is all it takes to join; PayPal brings the email and address at checkout.
+- One parcel for the whole live, drawn as the shipping label it will become: everything they've said +1 to, with a colour swatch per item. Paid items are marked PAID; what's still held adds up at the bottom with the time left and one button to pay. Once everything is paid the label gets its barcode; once it's shipped, the carrier and tracking number.
 - Private replies from PlusOne in their own language: "Blue M is yours, held for 15 min", "sold out, you're next in line", "freed up, it's yours now".
 - **Saved PayPal and auto-pay.** At the first checkout the buyer can save their PayPal with the shop (PayPal asks them to agree). After that, the next order is one tap with no PayPal window. Or they turn on auto-pay for this live, up to $50, $100 or $200: then saying "+1 the rattan bag" is the whole purchase. The label counts down 15 seconds after the order last changed, so "and the scarf too" joins the same payment; a question from PlusOne pauses the countdown until they answer.
 
 **The seller** (`/seller`)
 
-- Every order as a label on the packing table, sorted into three lanes: waiting to pay (with its hold draining and a Remind button), paid and ready to pack, sent. People waiting in line, and the latest +1s scrolling across the top.
+- Tonight's orders as three manifests on the packing table, one line per order: waiting to pay (time left, Remind), paid and ready to pack (Ship), sent (tracking number). People waiting in line sit under the first. The chat opens beside them only when the seller wants to read it.
 - The few things only the seller can decide, on red packing tape across the top, such as a refund request with a one-tap refund through PayPal.
 - Cards from what the host says ("dress and blouse together, five dollars off"); one tap applies them, and buyers holding the dress are offered the blouse.
 - **Let PlusOne watch**: with the camera on, the host holds a product up and it goes on screen for buyers, so their "+1" means what they can see. No tapping mid-sale.
 - Ship with a tracking number; End live sends the PayPal invoices and writes the night's recap.
-- **Ask PlusOne**: type or say "Hey PlusOne, who still owes?" and it looks through tonight's orders and the shop's PayPal account (PayPal Agent Toolkit). Anything that moves money or messages buyers comes back as a card to approve: remind them in chat, send PayPal invoice reminders, refund a line, ship with a tracking number. It can also put a product on screen or make a pay QR code for an invoice.
+- **Ask PlusOne**, a bar at the bottom of the table: type or say "Hey PlusOne, who still owes?" and it looks through tonight's orders and the shop's PayPal account (PayPal Agent Toolkit). Anything that moves money or messages buyers comes back as a card to approve: remind them in chat, send PayPal invoice reminders, refund a line, ship with a tracking number. It can also put a product on screen or make a pay QR code for an invoice.
 - A report (AG Studio) with an AI assistant that answers "why is blue M sold out?" and can remind everyone who still owes.
 
-![The seller's packing table: a question only the seller can answer, a deal card from the host's speech, and orders as labels in three lanes](docs/images/seller-book.jpg)
+![The seller's packing table: a question only the seller can answer, tonight's orders as three manifests, and Ask PlusOne lining up chat reminders for approval](docs/images/seller-book.jpg)
 
 ## PayPal
 
 | What happens | PayPal API |
 | --- | --- |
-| Buyer pays from their order slip | Orders v2 (`intent=CAPTURE`) through the JS SDK v6 button; server creates and captures with the [PayPal Server SDK](https://github.com/paypal/PayPal-TypeScript-Server-SDK) |
+| Buyer pays from their parcel | Orders v2 (`intent=CAPTURE`) through the JS SDK v6 button; server creates and captures with the [PayPal Server SDK](https://github.com/paypal/PayPal-TypeScript-Server-SDK) |
 | Stock is only locked when the money is in | Webhooks (`PAYMENT.CAPTURE.COMPLETED` and related events), signature-verified; the webhook is created and kept pointed at the server automatically |
 | Buyer cancels a paid item | Refunds (partial, one line of a combined order) |
 | Seller ships | Shipment Tracking on the capture, buyer notified by PayPal |
@@ -68,7 +69,7 @@ Two agents in PlusOne move money, and each one has a limit someone chose.
 - **The buyer's**: auto-pay. The buyer saves their PayPal, picks a limit for one live, and from then on what they say in chat is what they buy. Every change restarts a short countdown on their label, a question from PlusOne pauses it, the limit is checked again at the moment of payment, and a declined payment turns auto-pay off instead of retrying. Changed their mind? They say so in chat and the seller refunds that item through PayPal.
 - **The seller's**: Ask PlusOne. It reads freely: tonight's orders, stock, waitlists, and the shop's PayPal invoices, refunds, tracking and disputes through PayPal's Agent Toolkit. It doesn't send anything by itself. Reminders, invoice reminders, cancellations, refunds and shipping come back as cards the seller approves, one by one or all at once.
 
-![Auto-pay counting down on the buyer's label after "and the silk scarf too"](docs/images/autopay.jpg)
+![Auto-pay counting down on the buyer's parcel: the held bag pays itself with the saved PayPal](docs/images/autopay.jpg)
 
 ![Ask PlusOne: PayPal invoice reminders queued as cards and sent through PayPal's Agent Toolkit after the seller approved them](docs/images/ask-plusone.jpg)
 
@@ -84,7 +85,7 @@ Claude (Opus 5.5) does the understanding; code does the money.
 - **Report assistant**: AG Studio's agents run on Claude through the server, with one extra tool that sends payment reminders.
 - Evals in `apps/api/src/ai/*.eval.ts` (24 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
 
-![After the live: the recap at the top of the seller's table, and an invoiced order](docs/images/after-live.jpg)
+![After the live: the recap at the top of the seller's table, and every unpaid order invoiced through PayPal](docs/images/after-live.jpg)
 
 ## Render Workflows
 
@@ -126,7 +127,7 @@ scripts         Dev tunnel, end-to-end PayPal run, a crowd of demo buyers
 
 **Live demo: <https://plusone-sjgp.onrender.com>** (buyers at `/live/lumicloset`, the seller console at `/seller`).
 
-The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's order shows a PayPal sandbox buyer to log in with. No real money moves. Pay once with "Save my PayPal" ticked and the next order is one tap; turn on auto-pay under your label and just say "+1". With no host on camera, the live moves on to the next product every 90 seconds, so you can try "the dress just now, blue S"; the pinned comment always suggests lines for what's on screen. Alone in the shop? In the seller console, **Play a busy minute** sends ten buyers through the same chat pipeline real buyers use: mixed languages, a change of size, a cancellation, a question only the seller can answer, a race for the last one. The shop resets itself after half an hour of quiet.
+The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's parcel shows a PayPal sandbox buyer to log in with. No real money moves. Pay once with "Save my PayPal" ticked and the next order is one tap; turn on auto-pay on your parcel and just say "+1". With no host on camera, the live moves on to the next product every 90 seconds, so you can try "the dress just now, blue S"; the chat box always suggests a line for what's on screen. Alone in the shop? In the seller console's Demo menu, **Play a busy minute** sends ten buyers through the same chat pipeline real buyers use: mixed languages, a change of size, a cancellation, a question only the seller can answer, a race for the last one. The shop resets itself after half an hour of quiet.
 
 ## Run locally
 

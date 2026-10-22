@@ -2,10 +2,11 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useLive } from "../lib/useLiveRoom";
 
-// "Ask PlusOne": the seller types (or says) what they want. PlusOne looks
-// things up in tonight's orders and in PayPal through PayPal's Agent Toolkit,
-// and anything that moves money or messages buyers comes back as a card to
-// approve. Steps show as they happen, so the seller sees what was checked.
+// "Ask PlusOne": a bar at the bottom of the table. The seller types (or says)
+// what they want; PlusOne looks things up in tonight's orders and in PayPal
+// through PayPal's Agent Toolkit, and anything that moves money or messages
+// buyers comes back as a card to approve. The answer opens above the bar, with
+// the steps as they happen, so the seller sees what was checked.
 
 type Step = { key: number; tool: string; label: string; source: "paypal" | "plusone" };
 type Card = {
@@ -60,6 +61,9 @@ export function Copilot({ sessionId, token }: { sessionId: string; token: string
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [focused, setFocused] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
   const spoken = useLive((s) => s.copilotAsk);
@@ -76,6 +80,7 @@ export function Copilot({ sessionId, token }: { sessionId: string; token: string
   async function ask(question: string, voice = false) {
     if (!question.trim() || busy) return;
     setBusy(true);
+    setHidden(false);
     setText("");
     const history = exchanges
       .slice(-3)
@@ -150,154 +155,182 @@ export function Copilot({ sessionId, token }: { sessionId: string; token: string
 
   askRef.current = ask;
 
+  // The panel sits above the input: keep its newest line in view as steps stream in.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on every update
+  useEffect(() => {
+    const el = panelRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [exchanges]);
+
   function submit(e: FormEvent) {
     e.preventDefault();
     void ask(text);
   }
 
   const last = exchanges.length - 1;
+  const suggest = focused && !busy && !text.trim() && (exchanges.length === 0 || hidden);
   return (
-    <section className="label mb-4" aria-label="Ask PlusOne">
-      <form onSubmit={submit} className="zone flex items-center gap-2 px-3 py-2.5">
-        <span className="shrink-0 text-sm font-extrabold">Ask PlusOne</span>
+    <section className="flex flex-col gap-2" aria-label="Ask PlusOne">
+      {exchanges.length > 0 && !hidden && (
+        <div ref={panelRef} className="label max-h-[50vh] overflow-y-auto">
+          <div className="zone flex items-center justify-between px-4 py-2">
+            <span className="text-xs font-bold">Ask PlusOne</span>
+            <button
+              type="button"
+              onClick={() => setHidden(true)}
+              className="text-xs text-quiet underline decoration-dotted underline-offset-2"
+            >
+              Hide
+            </button>
+          </div>
+          {exchanges.map((e, i) =>
+            i < last ? (
+              <p key={e.id} className="zone truncate px-4 py-1.5 text-[13px] text-quiet">
+                You: {e.question}
+                {e.answer ? `  PlusOne: ${e.answer}` : ""}
+              </p>
+            ) : (
+              <div key={e.id} className="zone px-4 py-3">
+                <p className="text-[13px] text-quiet">
+                  {e.voice ? "You said" : "You"}: {e.question}
+                </p>
+                {e.steps.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {e.steps.map((s) => (
+                      <span
+                        key={s.key}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.source === "paypal" ? "bg-black text-white" : "bg-paper"}`}
+                      >
+                        {s.source === "paypal" ? "PayPal: " : ""}
+                        {s.source === "paypal" ? s.label.replace(/^PayPal /, "") : s.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {e.answer === null && !e.error && (
+                  <p className="mt-1.5 text-sm text-quiet" role="status">
+                    Looking…
+                  </p>
+                )}
+                {e.answer && <p className="mt-1.5 leading-snug">{e.answer}</p>}
+                {e.error && <p className="mt-1.5 text-sm text-pen">{e.error}</p>}
+                {e.images.map((img) => (
+                  <figure key={img.dataUrl.slice(-24)} className="mt-2 inline-block">
+                    <img
+                      src={img.dataUrl}
+                      alt={img.caption}
+                      className="h-44 w-44 rounded-lg border-2 border-black"
+                    />
+                    <figcaption className="text-xs text-quiet">{img.caption}</figcaption>
+                  </figure>
+                ))}
+                {e.cards.filter((c) => c.state === "open").length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      for (const c of e.cards.filter((x) => x.state === "open"))
+                        void decide(i, c, true);
+                    }}
+                    className="mt-2 rounded-full bg-black px-3.5 py-1 text-sm font-bold text-white"
+                  >
+                    Approve all {e.cards.filter((c) => c.state === "open").length}
+                  </button>
+                )}
+                {e.cards.length > 0 && (
+                  <ul className="mt-2 flex flex-col gap-1.5">
+                    {e.cards.map((c) => (
+                      <li
+                        key={c.id}
+                        className={`flex flex-wrap items-center gap-2 rounded-label border-2 border-black px-3 py-2 ${c.state === "done" ? "bg-label" : "bg-pale"}`}
+                      >
+                        <span className="min-w-0 flex-1 text-sm font-bold">
+                          {c.source === "paypal" && (
+                            <span className="mr-1.5 rounded-full bg-black px-2 py-0.5 text-[11px] text-white">
+                              PayPal
+                            </span>
+                          )}
+                          {c.title}
+                        </span>
+                        {c.state === "open" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void decide(i, c, true)}
+                              className="rounded-full bg-black px-3.5 py-1 text-sm font-bold text-white"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void decide(i, c, false)}
+                              className="rounded-full border-2 border-black bg-label px-3 py-1 text-sm font-bold"
+                            >
+                              Not now
+                            </button>
+                          </>
+                        )}
+                        {c.state === "running" && (
+                          <span className="text-sm text-quiet">Doing it…</span>
+                        )}
+                        {c.state === "done" && (
+                          <span className="text-sm font-semibold text-paid">✓ {c.result}</span>
+                        )}
+                        {c.state === "failed" && (
+                          <span className="text-sm text-pen">{c.result}</span>
+                        )}
+                        {c.state === "dismissed" && (
+                          <span className="text-sm text-quiet">Skipped</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ),
+          )}
+        </div>
+      )}
+      {suggest && (
+        <div className="flex flex-wrap items-center gap-2">
+          {SUGGESTIONS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void ask(q)}
+              className="rounded-full border-2 border-black bg-label px-3 py-1 text-[13px] font-semibold hover:bg-pale"
+            >
+              {q}
+            </button>
+          ))}
+          <span className="text-xs text-black/70">
+            Looks things up in PayPal with PayPal's Agent Toolkit
+          </span>
+        </div>
+      )}
+      <form
+        onSubmit={submit}
+        className="flex items-center gap-3 rounded-full border-2 border-black bg-label py-1.5 pr-1.5 pl-5 shadow-[0_8px_24px_rgb(80_50_10/0.25)]"
+      >
         <input
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Who still owes? Refund Farah's skirt. Ship Mei's with Ninja Van NV123…"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="Ask PlusOne, or say “Hey PlusOne…”"
           aria-label="Ask PlusOne"
           maxLength={600}
-          className="min-w-0 flex-1 rounded-full border-2 border-black bg-label px-3.5 py-1.5 text-sm focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] placeholder:text-quiet focus:outline-none"
         />
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="rounded-full bg-black px-4 py-1.5 text-sm font-bold text-white disabled:opacity-40"
+          className="rounded-full bg-black px-5 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           {busy ? "Working…" : "Ask"}
         </button>
       </form>
-      {exchanges.length === 0 ? (
-        <div className="zone flex flex-wrap items-center gap-2 px-3 py-2">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => void ask(s)}
-              className="rounded-full bg-paper px-3 py-1 text-[13px] font-semibold hover:bg-pale"
-            >
-              {s}
-            </button>
-          ))}
-          <span className="ml-auto text-xs text-quiet">
-            Looks things up in PayPal with PayPal's Agent Toolkit
-          </span>
-        </div>
-      ) : (
-        exchanges.map((e, i) =>
-          i < last ? (
-            <p key={e.id} className="zone truncate px-3.5 py-1.5 text-[13px] text-quiet">
-              You: {e.question}
-              {e.answer ? `  PlusOne: ${e.answer}` : ""}
-            </p>
-          ) : (
-            <div key={e.id} className="zone max-h-[46vh] overflow-y-auto px-3.5 py-2.5">
-              <p className="text-[13px] text-quiet">
-                {e.voice ? "You said" : "You"}: {e.question}
-              </p>
-              {e.steps.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {e.steps.map((s) => (
-                    <span
-                      key={s.key}
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.source === "paypal" ? "bg-black text-white" : "bg-paper"}`}
-                    >
-                      {s.source === "paypal" ? "PayPal: " : ""}
-                      {s.source === "paypal" ? s.label.replace(/^PayPal /, "") : s.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {e.answer === null && !e.error && (
-                <p className="mt-1.5 text-sm text-quiet" role="status">
-                  Looking…
-                </p>
-              )}
-              {e.answer && <p className="mt-1.5 leading-snug">{e.answer}</p>}
-              {e.error && <p className="mt-1.5 text-sm text-pen">{e.error}</p>}
-              {e.images.map((img) => (
-                <figure key={img.dataUrl.slice(-24)} className="mt-2 inline-block">
-                  <img
-                    src={img.dataUrl}
-                    alt={img.caption}
-                    className="h-44 w-44 rounded-lg border-2 border-black"
-                  />
-                  <figcaption className="text-xs text-quiet">{img.caption}</figcaption>
-                </figure>
-              ))}
-              {e.cards.filter((c) => c.state === "open").length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    for (const c of e.cards.filter((x) => x.state === "open"))
-                      void decide(i, c, true);
-                  }}
-                  className="mt-2 rounded-full bg-black px-3.5 py-1 text-sm font-bold text-white"
-                >
-                  Approve all {e.cards.filter((c) => c.state === "open").length}
-                </button>
-              )}
-              {e.cards.length > 0 && (
-                <ul className="mt-2 flex flex-col gap-1.5">
-                  {e.cards.map((c) => (
-                    <li
-                      key={c.id}
-                      className={`flex flex-wrap items-center gap-2 rounded-label border-2 border-black px-3 py-2 ${c.state === "done" ? "bg-label" : "bg-pale"}`}
-                    >
-                      <span className="min-w-0 flex-1 text-sm font-bold">
-                        {c.source === "paypal" && (
-                          <span className="mr-1.5 rounded-full bg-black px-2 py-0.5 text-[11px] text-white">
-                            PayPal
-                          </span>
-                        )}
-                        {c.title}
-                      </span>
-                      {c.state === "open" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void decide(i, c, true)}
-                            className="rounded-full bg-black px-3.5 py-1 text-sm font-bold text-white"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void decide(i, c, false)}
-                            className="rounded-full border-2 border-black bg-label px-3 py-1 text-sm font-bold"
-                          >
-                            Not now
-                          </button>
-                        </>
-                      )}
-                      {c.state === "running" && (
-                        <span className="text-sm text-quiet">Doing it…</span>
-                      )}
-                      {c.state === "done" && (
-                        <span className="text-sm font-semibold text-paid">✓ {c.result}</span>
-                      )}
-                      {c.state === "failed" && <span className="text-sm text-pen">{c.result}</span>}
-                      {c.state === "dismissed" && (
-                        <span className="text-sm text-quiet">Skipped</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ),
-        )
-      )}
     </section>
   );
 }

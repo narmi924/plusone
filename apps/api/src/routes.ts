@@ -60,9 +60,11 @@ interface Deps {
   webhookId: () => string | null;
 }
 
+// A name is enough to order. The email comes from PayPal at the first payment;
+// a buyer who never pays and gave none gets their invoice as a link instead.
 const JoinBody = z.object({
   name: z.string().trim().min(1).max(40),
-  email: z.string().trim().email().max(120),
+  email: z.union([z.string().trim().email().max(120), z.literal("")]).default(""),
 });
 
 export async function registerRoutes(app: FastifyInstance, deps: Deps) {
@@ -145,7 +147,7 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/api/buyers", async (req, reply) => {
     const parsed = JoinBody.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "Enter a name and a valid email" });
+    if (!parsed.success) return reply.code(400).send({ error: "Enter your name" });
     const { token, tokenHash } = newBuyerToken();
     const [buyer] = await db
       .insert(buyers)

@@ -93,7 +93,12 @@ export function createInvoicing(deps: {
         },
         invoicer: { business_name: seller.name },
         primary_recipients: [
-          { billing_info: { name: { given_name: buyer.name }, email_address: buyer.email } },
+          {
+            billing_info: {
+              name: { given_name: buyer.name },
+              ...(buyer.email ? { email_address: buyer.email } : {}),
+            },
+          },
         ],
         items: lines.map((l) => ({
           name: label(l),
@@ -124,7 +129,8 @@ export function createInvoicing(deps: {
 
     await paypal
       .rest("POST", `/v2/invoicing/invoices/${id}/send`, {
-        send_to_recipient: true,
+        // Without an email PayPal can't send it; the buyer pays from the link in their order.
+        send_to_recipient: Boolean(buyer.email),
         send_to_invoicer: false,
         subject: `Your order from ${seller.name}`,
       })
@@ -173,7 +179,10 @@ export function createInvoicing(deps: {
     await notify.privateTo(
       order.sessionId,
       order.buyerId,
-      phrase(buyer.locale, "invoiced", { item: lines.map(label).join(" + "), due }),
+      phrase(buyer.locale, buyer.email ? "invoiced" : "invoicedLink", {
+        item: lines.map(label).join(" + "),
+        due,
+      }),
     );
     await notify.orders([order.id]);
     return row ?? null;

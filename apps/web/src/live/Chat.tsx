@@ -37,8 +37,11 @@ export function ChatFeed({
         if (m.authorKind === "assistant") {
           if (overlay) {
             return (
-              <li key={m.id} className="max-w-136 rounded-2xl bg-label px-3 py-2 text-black">
-                <div className="text-xs text-quiet">PlusOne, only you see this</div>
+              <li
+                key={m.id}
+                className="max-w-136 rounded-2xl bg-label px-3.5 py-2.5 text-black"
+                title="From PlusOne, only you see this"
+              >
                 <p className="text-[15px] leading-snug">{m.body}</p>
                 {m.options && m.options.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -73,11 +76,11 @@ export function ChatFeed({
               key={m.id}
               className={
                 overlay
-                  ? "over-video font-bold text-sticker"
+                  ? "over-video text-[15px] font-bold"
                   : "self-start rounded-md bg-pale px-2 py-0.5 font-bold"
               }
             >
-              {!overlay && <span className="mr-1 text-pen">+1</span>}
+              <span className={`mr-1 ${overlay ? "text-sticker" : "text-pen"}`}>+1</span>
               {m.body}
             </li>
           );
@@ -120,7 +123,6 @@ function Reading({ overlay }: { overlay: boolean }) {
   );
 }
 
-/** The bar at the bottom of the stage: type anything, or tap the big +1. */
 /** Things to try for what's on screen, the way buyers actually type them. */
 export function tryLines(current: ProductDTO | null, previous: ProductDTO | null) {
   const inStock = (p: ProductDTO) => p.variants.filter((v) => v.available > 0);
@@ -133,7 +135,7 @@ export function tryLines(current: ProductDTO | null, previous: ProductDTO | null
   const before = previous ? inStock(previous)[0] : undefined;
   if (previous && before) {
     const noun = previous.name.split(" ").at(-1)?.toLowerCase() ?? "one";
-    lines.push(`the ${noun} just now, ${option(before) || "one"}`);
+    lines.push(option(before) ? `the ${noun} just now, ${option(before)}` : `the ${noun} just now`);
   }
   const other = now.find((v) => v.color && v.color !== first?.color);
   lines.push(other?.color ? `change it to ${other.color.toLowerCase()}` : "make it 2");
@@ -141,56 +143,17 @@ export function tryLines(current: ProductDTO | null, previous: ProductDTO | null
   return lines;
 }
 
-/** The shop's pinned comment: how ordering works here, with lines to try. */
-export function PinnedHowTo({
-  shop,
-  lines,
-  onTry,
-}: {
-  shop: string;
-  lines: string[];
-  onTry?: (text: string) => void;
-}) {
-  return (
-    <div className="w-full max-w-136 rounded-xl bg-black/55 px-3.5 py-2.5 backdrop-blur-sm">
-      <p className="flex items-center gap-1.5 text-xs text-white/70">
-        <svg viewBox="0 0 16 16" className="h-3 w-3 fill-current" aria-hidden="true">
-          <path d="M10.5 1.5 14.5 5.5 12 6.5 9.5 9 10 12.5 8.5 14 5.75 11.25 2 15 1 14 4.75 10.25 2 7.5 3.5 6 7 6.5 9.5 4z" />
-        </svg>
-        Pinned by {shop}
-      </p>
-      <p className="mt-0.5 text-sm font-semibold">
-        Type +1 for what's on screen, or say it your way:
-      </p>
-      <div className="mt-1.5 flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
-        {lines.map((t) =>
-          onTry ? (
-            <button
-              key={t}
-              type="button"
-              onClick={() => onTry(t)}
-              className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[13px] hover:bg-white/25"
-            >
-              "{t}"
-            </button>
-          ) : (
-            <span key={t} className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[13px]">
-              "{t}"
-            </span>
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
+/** The bar at the bottom of the stage: type anything, or tap the big +1. */
 export function ChatInput({
   onSend,
   draft,
+  placeholder = "Say +1, or ask anything",
 }: {
   onSend: (body: string) => Promise<unknown>;
   /** Text to put in the box (from a tapped suggestion); `n` makes repeats count. */
   draft?: { text: string; n: number } | null;
+  /** What to try for what's on screen, e.g. 'Say +1, or "the dress just now, blue S"'. */
+  placeholder?: string;
 }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -230,18 +193,20 @@ export function ChatInput({
             ref={inputRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Say +1, ask about sizes, anything"
+            placeholder={placeholder}
             maxLength={500}
             aria-label="Chat message"
             className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] placeholder:text-quiet focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={!body.trim() || sending}
-            className="rounded-full bg-black px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
-          >
-            Send
-          </button>
+          {body.trim() && (
+            <button
+              type="submit"
+              disabled={sending}
+              className="rounded-full bg-black px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+            >
+              Send
+            </button>
+          )}
         </div>
         <button
           type="button"

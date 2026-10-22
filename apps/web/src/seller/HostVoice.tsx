@@ -1,73 +1,12 @@
 import type { RuleDTO } from "@plusone/shared";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { HOST_LANGUAGES, type HostLanguage, type useHostSpeech } from "../lib/speech";
 import { useLive } from "../lib/useLiveRoom";
 
 // The host sells the way they always do, out loud. PlusOne listens and turns
 // announcements ("this one 39, only 3 left", "dress and blouse together, five
 // off") into cards on the table; one tap applies a card. Nothing changes
 // without that tap.
-
-export function VoiceControl({ speech }: { speech: ReturnType<typeof useHostSpeech> }) {
-  const [language, setLanguage] = useState<HostLanguage>("en");
-  const heard = useLive((s) => s.heard);
-  const hearing = useLive((s) => s.hearing);
-  const on = speech.state === "on";
-
-  return (
-    <div
-      className={`shrink-0 rounded-[10px] border-2 border-black p-3 ${on ? "bg-pale" : "bg-label"}`}
-    >
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={speech.state === "starting"}
-          onClick={() => void (on ? speech.stop() : speech.start(language))}
-          aria-pressed={on}
-          className="min-w-0 flex-1 text-left text-sm leading-tight font-extrabold disabled:opacity-60"
-        >
-          {on
-            ? "Listening to you"
-            : speech.state === "starting"
-              ? "Starting…"
-              : "Let PlusOne listen"}
-        </button>
-        <select
-          value={language}
-          disabled={on}
-          onChange={(e) => setLanguage(e.target.value as HostLanguage)}
-          aria-label="Language you're speaking"
-          className="w-[84px] shrink-0 rounded-full border-[1.5px] border-black bg-label px-1.5 py-0.5 text-xs font-semibold"
-        >
-          {HOST_LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="mt-1.5 min-h-9 text-[13px] leading-snug" aria-live="polite">
-        {on ? (
-          hearing ? (
-            <span>{hearing}</span>
-          ) : heard ? (
-            <span>“{heard}”</span>
-          ) : (
-            <span className="opacity-70">
-              Say prices, stock and deals the way you normally would.
-            </span>
-          )
-        ) : (
-          <span className="text-quiet">
-            Prices, new items and deals you say out loud become cards you can apply.
-          </span>
-        )}
-      </p>
-      {speech.error && <p className="mt-1 text-sm text-pen">{speech.error}</p>}
-    </div>
-  );
-}
 
 const KIND_LABEL: Record<RuleDTO["kind"], string> = {
   show_product: "Put on screen",

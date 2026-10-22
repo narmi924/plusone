@@ -24,12 +24,12 @@ export const initialReport: AgReportState = {
         taken: {
           type: "value",
           dataMapping: { value: [{ id: "lines.takenAmount", aggregation: "sum" }] },
-          format: { title: { enabled: true, text: "Taken with PayPal" } },
+          format: { title: { enabled: true, text: "Paid for, items" } },
         },
         owed: {
           type: "value",
           dataMapping: { value: [{ id: "lines.heldAmount", aggregation: "sum" }] },
-          format: { title: { enabled: true, text: "Held, waiting to pay" } },
+          format: { title: { enabled: true, text: "Held, not paid yet, items" } },
         },
         sold: {
           type: "value",
