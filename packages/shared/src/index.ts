@@ -175,6 +175,8 @@ export interface OrderDTO {
   paidVia: PaidVia | null;
   /** Auto-pay will charge the saved PayPal at this time unless the order changes. */
   autopayAt: string | null;
+  /** The same, as time left when the server sent this (browser clocks drift). */
+  autopayInMs: number | null;
   /** Where PayPal says to send it (from the buyer's PayPal checkout), one line. */
   shipTo: string | null;
   tracking: { carrier: string; number: string } | null;

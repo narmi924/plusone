@@ -3,7 +3,7 @@ import {
   PayPalOneTimePaymentButton,
 } from "@paypal/react-paypal-js/sdk-v6";
 import { formatMoney, type OrderDTO, type SessionDTO, type WalletDTO } from "@plusone/shared";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { swatchStyle } from "../lib/swatch";
 import { useLive } from "../lib/useLiveRoom";
@@ -269,8 +269,13 @@ function HeldOrder({
   // After the live ends, unpaid holds become a PayPal invoice with its own due date.
   const invoice = order.invoice?.status === "sent" ? order.invoice : null;
   const saved = wallet?.savedPayPal ?? null;
-  // Auto-pay is counting down: the saved PayPal pays when it reaches zero.
-  const autopayAt = wallet?.autopay && order.autopayAt ? Date.parse(order.autopayAt) : null;
+  // Auto-pay is counting down: the saved PayPal pays when it reaches zero. Timed
+  // from when this copy of the order arrived, not the server's clock.
+  const deadline = useMemo(
+    () => (order.autopayInMs === null ? null : Date.now() + order.autopayInMs),
+    [order],
+  );
+  const autopayAt = wallet?.autopay ? deadline : null;
   const autopayLeft = autopayAt ? Math.max(0, autopayAt - now) : null;
 
   const failed = (err: unknown) =>
@@ -625,6 +630,10 @@ export function MyOrderBar({
 }) {
   const now = useNow();
   const open = orders.find((o) => o.status === "reserved");
+  const autopayAt = useMemo(
+    () => (open?.autopayInMs == null ? null : Date.now() + open.autopayInMs),
+    [open],
+  );
   if (!open) return null;
   const items = open.lines
     .filter((l) => l.status === "held")
@@ -645,9 +654,11 @@ export function MyOrderBar({
         <span className="text-sm">
           {invoice
             ? `due ${dueLabel(invoice.dueAt)}`
-            : open.holdExpiresAt
-              ? `held ${countdown(open.holdExpiresAt, now)}`
-              : "held"}
+            : autopayAt
+              ? `auto-pay in ${Math.max(0, Math.ceil((autopayAt - now) / 1000))}s`
+              : open.holdExpiresAt
+                ? `held ${countdown(open.holdExpiresAt, now)}`
+                : "held"}
         </span>
         <small className="block truncate text-xs text-quiet">{items}</small>
         {!invoice && (

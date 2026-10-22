@@ -446,6 +446,7 @@ async function getOrderDTOs(tx: Tx, orderIds: string[]): Promise<OrderDTO[]> {
         paidVia:
           paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.via ?? null,
         autopayAt: order.autopayAt?.toISOString() ?? null,
+        autopayInMs: order.autopayAt ? Math.max(0, order.autopayAt.getTime() - Date.now()) : null,
         shipTo: shipToFrom(
           paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.raw,
         ),

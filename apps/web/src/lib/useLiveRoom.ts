@@ -139,9 +139,10 @@ export function useLiveRoom(opts: {
     let resolve!: (s: LiveSocket) => void;
     readyRef.current = { promise: new Promise<LiveSocket>((r) => (resolve = r)), resolve };
 
-    async function load() {
+    /** The session, chat and orders as the server has them now. */
+    async function fetchAll() {
       const session = await api.live(handle);
-      if (cancelled) return;
+      if (cancelled) return null;
       store.setSession(session);
 
       const [messages, orders] = await Promise.all([
@@ -152,9 +153,15 @@ export function useLiveRoom(opts: {
             ? api.myOrders(session.id, buyerToken)
             : Promise.resolve([] as OrderDTO[]),
       ]);
-      if (cancelled) return;
+      if (cancelled) return null;
       store.setMessages(messages);
       store.setOrders(orders);
+      return session;
+    }
+
+    async function load() {
+      const session = await fetchAll();
+      if (!session) return;
 
       const socket = connectLive({
         sessionId: session.id,
@@ -163,7 +170,14 @@ export function useLiveRoom(opts: {
       });
       socketRef.current = socket;
       resolve(socket);
-      socket.on("connect", () => useLive.getState().setConnected(true));
+      // After a dropped connection (a phone switching networks, a deploy), catch up
+      // on whatever happened while the page wasn't listening.
+      let connectedBefore = false;
+      socket.on("connect", () => {
+        useLive.getState().setConnected(true);
+        if (connectedBefore) void fetchAll().catch(() => undefined);
+        connectedBefore = true;
+      });
       socket.on("disconnect", (reason) => {
         useLive.getState().setConnected(false);
         // Only a demo reset closes sockets from the server: start over on the fresh shop.
