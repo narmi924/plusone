@@ -177,6 +177,8 @@ export interface OrderDTO {
   autopayAt: string | null;
   /** The same, as time left when the server sent this (browser clocks drift). */
   autopayInMs: number | null;
+  /** PlusOne asked the buyer something; auto-pay waits for the answer. */
+  autopayWaiting: boolean;
   /** Where PayPal says to send it (from the buyer's PayPal checkout), one line. */
   shipTo: string | null;
   tracking: { carrier: string; number: string } | null;

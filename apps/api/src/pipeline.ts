@@ -13,7 +13,7 @@ import {
   variants,
   waitlist,
 } from "./db/schema.js";
-import { holdOff } from "./services/autopay.js";
+import { holdOff, waitForAnswer } from "./services/autopay.js";
 import {
   describeVariant,
   getSessionDTO,
@@ -99,11 +99,6 @@ export function createChatPipeline(deps: {
       showcaseProductId: row.session.currentProductId,
     });
     deps.onMessage(msg);
-    await holdOff(db, notify, {
-      buyerId: input.buyer.id,
-      sessionId: input.sessionId,
-      ms: AUTOPAY_AFTER_MS,
-    });
 
     const understood: Promise<Understood> = (buyerTail.get(input.buyer.id) ?? Promise.resolve())
       .then(() => understand(msg, input.buyer, row))
@@ -118,6 +113,12 @@ export function createChatPipeline(deps: {
 
     enqueue(sessionTail, input.sessionId, applied);
     enqueue(buyerTail, input.buyer.id, applied);
+    // Queued in arrival order first; then push back any auto-pay countdown.
+    void holdOff(db, notify, {
+      buyerId: input.buyer.id,
+      sessionId: input.sessionId,
+      ms: AUTOPAY_AFTER_MS,
+    }).catch((err: unknown) => log.error({ err }, "pushing back auto-pay failed"));
     return { id: msg.id };
   }
 
@@ -250,9 +251,9 @@ export function createChatPipeline(deps: {
       replyToId: msg.id,
     });
     deps.onMessage(row);
-    // A question to the buyer: give them time to answer before auto-pay pays.
+    // A question to the buyer: auto-pay waits for their answer.
     if (options?.length)
-      await holdOff(db, notify, { buyerId: buyer.id, sessionId: msg.sessionId, ms: 60_000 });
+      await waitForAnswer(db, notify, { buyerId: buyer.id, sessionId: msg.sessionId });
   }
 
   async function flagForSeller(
@@ -355,6 +356,7 @@ export function createChatPipeline(deps: {
     const orderIds = new Set<string>();
     let held = 0;
     let waiting = 0;
+    let skipped = 0;
     const limits = await activeLimits(db, msg.sessionId);
     let limited: { max: number; variantId: string } | null = null;
     for (const [i, item] of items.entries()) {
@@ -423,6 +425,12 @@ export function createChatPipeline(deps: {
         );
       } catch (err) {
         if (!(err instanceof OutOfStockError)) throw err;
+        // "If no M forget it": the condition failed, so nothing is held and
+        // they're not put in line. They can say "put me in line" to wait.
+        if (it.intent === "conditional_buy") {
+          skipped++;
+          continue;
+        }
         // Gone: wait in line for this exact item. If it frees up it's held for them.
         await db.transaction((tx) =>
           joinWaitlist(tx, {
@@ -453,11 +461,14 @@ export function createChatPipeline(deps: {
       await reply(
         msg,
         buyer,
-        it.replyIfUnavailable ?? "That one is sold out. You're on the waitlist for it.",
+        it.replyIfUnavailable ??
+          (skipped > 0
+            ? "That one's gone, so I haven't held anything. Say \"put me in line\" if you'd like to wait for it."
+            : "That one is sold out. You're on the waitlist for it."),
       );
     } else {
       await reply(msg, buyer, it.reply);
-      if (waiting > 0)
+      if (waiting > 0 || skipped > 0)
         await flagForSeller(msg, buyer, "partly_sold_out", `${buyer.name}: "${msg.body}"`);
     }
   }

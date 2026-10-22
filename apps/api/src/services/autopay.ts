@@ -1,8 +1,14 @@
 import { formatMoney, type WalletDTO } from "@plusone/shared";
-import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, like, lte, or, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { Db } from "../db/client.js";
-import { buyers, liveSessions, orders, payments as paymentRows } from "../db/schema.js";
+import {
+  buyers,
+  chatMessages,
+  liveSessions,
+  orders,
+  payments as paymentRows,
+} from "../db/schema.js";
 import { PaymentError, type Payments } from "../paypal/payments.js";
 import { type Notifier, phrase } from "./notify.js";
 import { autopayRoom, recalcOrder } from "./orders.js";
@@ -73,8 +79,9 @@ export async function reArm(db: Db, notify: Notifier, buyerId: string, sessionId
 }
 
 /**
- * The buyer is talking (or PlusOne asked them something): push any auto-pay
- * countdown out so what they're about to say lands before the money moves.
+ * The buyer said something: push any auto-pay countdown out so it lands before
+ * the money moves. If PlusOne was waiting for their answer, this is it: the
+ * countdown starts again from the top.
  */
 export async function holdOff(
   db: Db,
@@ -84,18 +91,45 @@ export async function holdOff(
   const pushed = await db
     .update(orders)
     .set({
-      autopayAt: sql`greatest(${orders.autopayAt}, now() + make_interval(secs => ${input.ms / 1000}))`,
+      autopayWaiting: false,
+      autopayAt: sql`case when ${orders.autopayWaiting} then now() + make_interval(secs => ${input.ms / 1000})
+        else greatest(${orders.autopayAt}, now() + make_interval(secs => ${input.ms / 1000})) end`,
     })
     .where(
       and(
         eq(orders.buyerId, input.buyerId),
         eq(orders.sessionId, input.sessionId),
         eq(orders.status, "reserved"),
-        isNotNull(orders.autopayAt),
+        or(isNotNull(orders.autopayAt), eq(orders.autopayWaiting, true)),
       ),
     )
     .returning({ id: orders.id });
   if (pushed.length > 0) await notify.orders(pushed.map((o) => o.id));
+}
+
+/** PlusOne asked the buyer a question: no auto-pay until they answer, however long that takes. */
+export async function waitForAnswer(
+  db: Db,
+  notify: Notifier,
+  input: { buyerId: string; sessionId: string },
+) {
+  const [buyer] = await db
+    .select({ vault: buyers.paypalVaultId, autopayIn: buyers.autopaySessionId })
+    .from(buyers)
+    .where(eq(buyers.id, input.buyerId));
+  if (!buyer?.vault || buyer.autopayIn !== input.sessionId) return;
+  const held = await db
+    .update(orders)
+    .set({ autopayWaiting: true, autopayAt: null })
+    .where(
+      and(
+        eq(orders.buyerId, input.buyerId),
+        eq(orders.sessionId, input.sessionId),
+        eq(orders.status, "reserved"),
+      ),
+    )
+    .returning({ id: orders.id });
+  if (held.length > 0) await notify.orders(held.map((o) => o.id));
 }
 
 /** Pays orders whose auto-pay countdown ran out. Returns a stop function. */
@@ -119,7 +153,11 @@ export function startAutopay(deps: {
         and(
           eq(paymentRows.orderId, o.id),
           eq(paymentRows.status, "created"),
-          gt(paymentRows.createdAt, new Date(Date.now() - 5 * 60_000)),
+          // A recent checkout, or a saved-PayPal charge we never heard back about.
+          or(
+            gt(paymentRows.createdAt, new Date(Date.now() - 5 * 60_000)),
+            like(paymentRows.paypalOrderId, "pending-%"),
+          ),
         ),
       );
     const [live] = await db
@@ -128,11 +166,40 @@ export function startAutopay(deps: {
       .where(eq(liveSessions.id, o.sessionId));
     if (inCheckout || live?.status !== "live") return;
 
+    // Something they said is still being read (it could be "cancel that"):
+    // look again in a few seconds instead of paying over it.
+    const [unread] = await db
+      .select({ id: chatMessages.id })
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.buyerId, o.buyerId),
+          eq(chatMessages.sessionId, o.sessionId),
+          eq(chatMessages.authorKind, "buyer"),
+          inArray(chatMessages.status, ["received", "understood"]),
+          gt(chatMessages.createdAt, new Date(Date.now() - 2 * 60_000)),
+        ),
+      )
+      .limit(1);
+    if (unread) {
+      await db
+        .update(orders)
+        .set({ autopayAt: new Date(Date.now() + 5_000) })
+        .where(and(eq(orders.id, o.id), eq(orders.autopayWaiting, false)));
+      return;
+    }
+
     const [buyer] = await db
-      .select({ locale: buyers.locale })
+      .select({
+        locale: buyers.locale,
+        vault: buyers.paypalVaultId,
+        autopayIn: buyers.autopaySessionId,
+      })
       .from(buyers)
       .where(eq(buyers.id, o.buyerId));
-    const locale = buyer?.locale ?? null;
+    // Turned off (or PayPal forgotten) since the countdown started: nothing to do.
+    if (!buyer?.vault || buyer.autopayIn !== o.sessionId) return;
+    const locale = buyer.locale ?? null;
     try {
       const paid = await payments.payWithSaved(o.id, o.buyerId, "auto");
       const wallet = await getWallet(db, o.buyerId, o.sessionId);
@@ -180,6 +247,7 @@ export function startAutopay(deps: {
           and(
             lte(orders.autopayAt, new Date()),
             inArray(orders.status, ["reserved"]),
+            eq(orders.autopayWaiting, false),
             sql`${orders.id} IN (SELECT id FROM orders WHERE autopay_at <= now() LIMIT 10 FOR UPDATE SKIP LOCKED)`,
           ),
         )

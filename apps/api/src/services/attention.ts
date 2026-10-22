@@ -2,6 +2,7 @@ import type { AttentionDTO } from "@plusone/shared";
 import { and, asc, eq } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { attention, buyers, orderLines, orders } from "../db/schema.js";
+import { refundQuote } from "./refunds.js";
 
 /** The seller's "needs you" list: open items, oldest first, with a refund amount where one click settles it. */
 export async function listAttention(tx: Tx, sessionId: string): Promise<AttentionDTO[]> {
@@ -18,16 +19,9 @@ export async function listAttention(tx: Tx, sessionId: string): Promise<Attentio
   for (const { item, buyerName, line, order } of rows) {
     let refund: AttentionDTO["refund"] = null;
     if (item.kind === "cancel_paid" && line?.status === "paid" && order) {
-      const paidLeft = await tx
-        .select({ id: orderLines.id })
-        .from(orderLines)
-        .where(and(eq(orderLines.orderId, order.id), eq(orderLines.status, "paid")));
-      refund = {
-        lineId: line.id,
-        amountCents:
-          line.qty * line.unitPriceCents + (paidLeft.length === 1 ? order.shippingCents : 0),
-        currency: order.currency,
-      };
+      const quote = await refundQuote(tx, line.id);
+      if (quote)
+        refund = { lineId: line.id, amountCents: quote.amountCents, currency: quote.currency };
     }
     out.push({
       id: item.id,

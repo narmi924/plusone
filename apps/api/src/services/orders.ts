@@ -91,6 +91,8 @@ export async function holdItem(
     /** Keep an existing deadline instead of starting a new one (used when swapping an item). */
     holdExpiresAt?: Date | null;
     sourceMessageId?: string;
+    /** Handed over from the waitlist: the buyer pays for it themselves. */
+    fromWaitlist?: boolean;
   },
 ): Promise<{ lineId: string; stock: StockChange }> {
   const [variant] = await tx
@@ -111,6 +113,7 @@ export async function holdItem(
       status: "held",
       holdExpiresAt,
       sourceMessageId: input.sourceMessageId ?? null,
+      fromWaitlist: input.fromWaitlist ?? false,
     })
     .returning({ id: orderLines.id });
   if (!line) throw new Error("Could not add order line");
@@ -256,9 +259,12 @@ export async function recalcOrder(tx: Tx, orderId: string): Promise<void> {
 
   const totalCents = subtotalCents - discountCents + shippingCents;
 
-  // Every change to an open order restarts the auto-pay countdown.
+  // Every change to an open order restarts the auto-pay countdown. Not while
+  // PlusOne waits for the buyer's answer, and never for something handed over
+  // from the waitlist: they didn't just ask for it.
   let autopayAt: Date | null = null;
-  if (order.status === "reserved" && holds.length > 0) {
+  const fromWaitlist = lines.some((l) => l.status === "held" && l.fromWaitlist);
+  if (order.status === "reserved" && holds.length > 0 && !order.autopayWaiting && !fromWaitlist) {
     const [buyer] = await tx.select().from(buyers).where(eq(buyers.id, order.buyerId));
     if (
       buyer?.paypalVaultId &&
@@ -447,6 +453,7 @@ async function getOrderDTOs(tx: Tx, orderIds: string[]): Promise<OrderDTO[]> {
           paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.via ?? null,
         autopayAt: order.autopayAt?.toISOString() ?? null,
         autopayInMs: order.autopayAt ? Math.max(0, order.autopayAt.getTime() - Date.now()) : null,
+        autopayWaiting: order.autopayWaiting,
         shipTo: shipToFrom(
           paymentRows.find((p) => p.orderId === order.id && p.status === "captured")?.raw,
         ),

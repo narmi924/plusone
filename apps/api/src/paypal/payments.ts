@@ -32,6 +32,7 @@ import {
 import { describeVariant } from "../services/catalog.js";
 import { type Notifier, phrase } from "../services/notify.js";
 import { autopayRoom, getOrderDTO, recalcOrder } from "../services/orders.js";
+import { refundQuote } from "../services/refunds.js";
 import { moveStock, OutOfStockError } from "../services/stock.js";
 import { offerFreedStock } from "../services/waitlist.js";
 import { describePayPalError, type PayPal } from "./client.js";
@@ -245,7 +246,20 @@ export function createPayments(deps: {
         );
     }
 
+    // Write the attempt down before any money can move: if we never hear back,
+    // the open attempt stops a second charge, and PayPal's webhook finds it by
+    // the invoice id on the purchase unit.
     const paymentId = randomUUID();
+    await db.insert(payments).values({
+      id: paymentId,
+      orderId,
+      paypalOrderId: `pending-${paymentId}`,
+      status: "created",
+      amountCents,
+      currency: order.currency,
+      lineIds,
+      via,
+    });
     let result: Order;
     try {
       ({ result } = await paypal.orders.createOrder({
@@ -265,22 +279,17 @@ export function createPayments(deps: {
     } catch (err) {
       const info = describePayPalError(err);
       log.warn({ info, orderId }, "PayPal saved payment failed");
+      // PayPal answered no: nothing was charged.
+      if (info.status >= 400 && info.status < 500)
+        await db.update(payments).set({ status: "denied" }).where(eq(payments.id, paymentId));
       throw new PaymentError(info.message, info.status === 422 ? 422 : 502, info.issue);
     }
     if (!result.id) throw new PaymentError("PayPal did not return an order id", 502);
 
     const [payment] = await db
-      .insert(payments)
-      .values({
-        id: paymentId,
-        orderId,
-        paypalOrderId: result.id,
-        status: "created",
-        amountCents,
-        currency: order.currency,
-        lineIds,
-        via,
-      })
+      .update(payments)
+      .set({ paypalOrderId: result.id })
+      .where(eq(payments.id, paymentId))
       .returning();
     if (!payment) throw new Error("Could not record the payment");
     // A saved PayPal usually completes on create; otherwise capture as usual.
@@ -311,7 +320,12 @@ export function createPayments(deps: {
   }
 
   /** Captures an approved PayPal order. Safe to call more than once. */
-  async function capture(paypalOrderId: string, buyerId?: string) {
+  async function capture(
+    paypalOrderId: string,
+    buyerId?: string,
+    /** PayPal already reports the money captured (webhook): settle whatever happened since. */
+    opts: { alreadyPaid?: boolean } = {},
+  ) {
     const [payment] = await db
       .select()
       .from(payments)
@@ -323,6 +337,21 @@ export function createPayments(deps: {
     }
     // Already captured, refunded or declined: nothing to do, whoever asks.
     if (!AWAITING_CAPTURE.has(payment.status)) return getOrderDTO(db, payment.orderId);
+
+    // The buyer changed or cancelled something after opening PayPal: that
+    // checkout is no longer what they're buying, so no money moves.
+    const covered = await db
+      .select({ status: orderLines.status })
+      .from(orderLines)
+      .where(inArray(orderLines.id, payment.lineIds));
+    if (!opts.alreadyPaid && covered.some((l) => l.status !== "held" && l.status !== "released")) {
+      await db.update(payments).set({ status: "voided" }).where(eq(payments.id, payment.id));
+      throw new PaymentError(
+        "Your order changed after you opened PayPal, so nothing was charged. Pay again for the new total.",
+        409,
+        "ORDER_CHANGED",
+      );
+    }
 
     let result: Order;
     try {
@@ -361,7 +390,7 @@ export function createPayments(deps: {
       await db
         .update(payments)
         .set({ status: "approved", captureId: cap.id ?? null, raw: result })
-        .where(eq(payments.id, payment.id));
+        .where(and(eq(payments.id, payment.id), inArray(payments.status, ["created", "approved"])));
     } else {
       await db
         .update(payments)
@@ -490,28 +519,15 @@ export function createPayments(deps: {
    * parcel. The item goes back on sale, to the waitlist first.
    */
   async function refundLine(lineId: string) {
-    const [line] = await db.select().from(orderLines).where(eq(orderLines.id, lineId));
-    if (line?.status !== "paid") throw new PaymentError("Only paid items can be refunded");
-    const [order] = await db.select().from(orders).where(eq(orders.id, line.orderId));
-    if (!order) throw new PaymentError("Order not found", 404);
-    const [payment] = await db
-      .select()
-      .from(payments)
-      .where(
-        and(
-          eq(payments.orderId, order.id),
-          inArray(payments.status, ["captured", "partially_refunded"]),
-          sql`${payments.lineIds} @> ${JSON.stringify([line.id])}::jsonb`,
-        ),
-      );
-    if (!payment?.captureId) throw new PaymentError("No PayPal payment found for this item");
-
+    const quote = await refundQuote(db, lineId);
+    if (!quote) throw new PaymentError("Only paid items can be refunded");
+    const { line, order, payment, amountCents } = quote;
+    if (!payment.captureId) throw new PaymentError("No PayPal payment found for this item");
     const stillPaid = await db
       .select({ id: orderLines.id })
       .from(orderLines)
       .where(and(eq(orderLines.orderId, order.id), eq(orderLines.status, "paid")));
     const last = stillPaid.length === 1;
-    const amountCents = line.qty * line.unitPriceCents + (last ? order.shippingCents : 0);
     const what = await describeVariant(db, line.variantId);
 
     try {
@@ -546,7 +562,10 @@ export function createPayments(deps: {
       await tx.update(orderLines).set({ status: "refunded" }).where(eq(orderLines.id, line.id));
       await tx
         .update(payments)
-        .set({ status: last ? "refunded" : "partially_refunded" })
+        .set({
+          status: quote.last ? "refunded" : "partially_refunded",
+          refundedCents: sql`${payments.refundedCents} + ${amountCents}`,
+        })
         .where(eq(payments.id, payment.id));
       if (last) {
         await tx
@@ -618,6 +637,16 @@ export function createPayments(deps: {
           continue;
         }
       } else {
+        if (line.status === "cancelled") {
+          // Money came in for an item the buyer changed or cancelled meanwhile.
+          await tx.insert(attention).values({
+            sessionId: order.sessionId,
+            kind: "paid_but_gone",
+            summary: "Paid for an item that was changed or cancelled meanwhile. Refund or send it.",
+            orderId: order.id,
+            buyerId: order.buyerId,
+          });
+        }
         continue;
       }
       await tx
@@ -626,6 +655,30 @@ export function createPayments(deps: {
         .where(eq(orderLines.id, line.id));
     }
     return stock;
+  }
+
+  /**
+   * A saved-PayPal charge we never heard back about: its row still has a
+   * placeholder order id. The purchase unit's invoice id carries the start of
+   * our payment id, so the webhook can still find it.
+   */
+  async function adoptSavedAttempt(resource: Record<string, unknown>, paypalOrderId: string) {
+    const orderId = typeof resource.custom_id === "string" ? resource.custom_id : null;
+    const prefix =
+      typeof resource.invoice_id === "string" ? resource.invoice_id.split("-")[1] : null;
+    if (!orderId || !prefix) return undefined;
+    const open = await db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.orderId, orderId), eq(payments.status, "created")));
+    const hit = open.find((p) => p.id.startsWith(prefix) && p.paypalOrderId.startsWith("pending-"));
+    if (!hit) return undefined;
+    const [adopted] = await db
+      .update(payments)
+      .set({ paypalOrderId })
+      .where(eq(payments.id, hit.id))
+      .returning();
+    return adopted;
   }
 
   /** Called from the webhook route once the signature is verified. */
@@ -641,17 +694,21 @@ export function createPayments(deps: {
         break;
       }
       case "PAYMENT.CAPTURE.COMPLETED": {
-        const captureId = typeof resource.id === "string" ? resource.id : null;
         const related = (
           resource.supplementary_data as { related_ids?: { order_id?: string } } | undefined
         )?.related_ids;
         const paypalOrderId = related?.order_id;
-        if (!captureId || !paypalOrderId) break;
-        const [payment] = await db
+        if (!paypalOrderId) break;
+        let [payment] = await db
           .select()
           .from(payments)
           .where(eq(payments.paypalOrderId, paypalOrderId));
-        if (payment) await settle(payment.id, captureId, { payerEmail: null, raw: resource });
+        if (!payment) payment = await adoptSavedAttempt(resource, paypalOrderId);
+        // Settle from PayPal's full order (address, payer), not the capture alone.
+        if (payment)
+          await capture(paypalOrderId, undefined, { alreadyPaid: true }).catch((err) =>
+            log.warn({ err, paypalOrderId }, "settling from webhook failed"),
+          );
         break;
       }
       case "PAYMENT.CAPTURE.DENIED":
@@ -660,10 +717,16 @@ export function createPayments(deps: {
           resource.supplementary_data as { related_ids?: { order_id?: string } } | undefined
         )?.related_ids;
         if (related?.order_id) {
+          // Only a payment still in checkout can be denied; a paid one stays paid.
           await db
             .update(payments)
             .set({ status: "denied" })
-            .where(eq(payments.paypalOrderId, related.order_id));
+            .where(
+              and(
+                eq(payments.paypalOrderId, related.order_id),
+                inArray(payments.status, ["created", "approved"]),
+              ),
+            );
         }
         break;
       }

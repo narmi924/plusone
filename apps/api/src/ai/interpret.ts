@@ -113,8 +113,9 @@ Changing and cancelling:
 - A purchase with a condition ("only if there's M", "no M then don't switch colour") is conditional_buy; put the condition in words in condition.
 
 Sold out:
-- When a buyer wants an item with 0 available, the server automatically puts them on the waitlist for that exact item. If one frees up (a cancel, a hold that runs out) it is held for them and they are told.
-- So replyIfUnavailable tells them they're on the waitlist. Also offer the closest in-stock alternative, unless their condition rules alternatives out. In the stock list, "(+N on hold)" means others are holding some and those may free up.
+- When a buyer wants an item with 0 available, the server puts them on the waitlist for that exact item. If one frees up (a cancel, a hold that runs out) it is held for them and they are told.
+- A conditional_buy is different: the condition means "only if it's there now", so when the item is gone nothing is held and they are not put in line.
+- So for buy, replyIfUnavailable tells them they're on the waitlist, and offers the closest in-stock alternative. For conditional_buy, it says the item is gone so nothing is held, and that they can say "put me in line" to wait for one; offer no alternative their condition rules out. "Put me in line for blue M" is a buy. In the stock list, "(+N on hold)" means others are holding some and those may free up.
 
 Deals and limits:
 - The host's deals and limits are listed in the context. A per-person limit caps what one buyer can hold or buy of that product in total, counting what they already have: never put a quantity above what they're still allowed, and tell them the limit if you had to.

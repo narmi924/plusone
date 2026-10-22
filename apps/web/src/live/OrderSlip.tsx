@@ -251,6 +251,19 @@ function Status({
   const expired = order.holdExpiresAt ? Date.parse(order.holdExpiresAt) <= now : false;
   const total = <b className="sort text-[46px]">{formatMoney(order.totalCents, order.currency)}</b>;
 
+  if (wallet?.autopay && order.autopayWaiting) {
+    return (
+      <section aria-label="Auto-pay waiting" className="zone bg-black px-4 py-3 text-white">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold">Auto-pay waits for your answer</p>
+            <b className="sort text-[34px]">paused</b>
+          </div>
+          {total}
+        </div>
+      </section>
+    );
+  }
   if (autopayLeft !== null) {
     return (
       <section aria-label="Auto-pay countdown" className="zone bg-black px-4 py-3 text-white">
@@ -350,7 +363,7 @@ function PayAction({
   saveRef.current = save;
   const [otherWay, setOtherWay] = useState(false);
   const deadline = useAutopayDeadline(order);
-  const counting = Boolean(wallet?.autopay && deadline);
+  const counting = Boolean(wallet?.autopay && (deadline || order.autopayWaiting));
   const invoice = order.invoice?.status === "sent" ? order.invoice : null;
   const saved = wallet?.savedPayPal ?? null;
   const total = formatMoney(order.totalCents, order.currency);
@@ -588,16 +601,25 @@ export function MyOrderBar({
         <span className="text-sm">
           {invoice
             ? `due ${dueLabel(invoice.dueAt)}`
-            : autopayAt
-              ? `auto-pay in ${Math.max(0, Math.ceil((autopayAt - now) / 1000))}s`
-              : open.holdExpiresAt
-                ? `held ${countdown(open.holdExpiresAt, now)}`
-                : "held"}
+            : open.autopayWaiting
+              ? "auto-pay waits for your answer"
+              : autopayAt
+                ? `auto-pay in ${Math.max(0, Math.ceil((autopayAt - now) / 1000))}s`
+                : open.holdExpiresAt
+                  ? `held ${countdown(open.holdExpiresAt, now)}`
+                  : "held"}
         </span>
       </span>
-      <span className="grid place-items-center bg-[#ffc439] px-5 text-[15px] font-extrabold">
-        Pay
-      </span>
+      {/* While auto-pay handles it there's nothing to pay here, only to look at. */}
+      {autopayAt || open.autopayWaiting ? (
+        <span className="grid place-items-center bg-black px-5 text-[15px] font-extrabold text-white">
+          View
+        </span>
+      ) : (
+        <span className="grid place-items-center bg-[#ffc439] px-5 text-[15px] font-extrabold">
+          Pay
+        </span>
+      )}
     </button>
   );
 }

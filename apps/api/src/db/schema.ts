@@ -200,6 +200,8 @@ export const orders = pgTable(
     shipsWithOrderId: uuid(),
     /** Auto-pay charges the saved PayPal at this time, unless the order changes first. */
     autopayAt: timestamp({ withTimezone: true }),
+    /** PlusOne asked the buyer something: auto-pay waits for their answer, however long. */
+    autopayWaiting: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -226,6 +228,8 @@ export const orderLines = pgTable(
     unitPriceCents: integer().notNull(),
     status: text().$type<LineStatus>().notNull().default("held"),
     holdExpiresAt: timestamp({ withTimezone: true }),
+    /** Given to them from the waitlist: they pay for it themselves, auto-pay never does. */
+    fromWaitlist: boolean().notNull().default(false),
     sourceMessageId: uuid().references(() => chatMessages.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -347,6 +351,8 @@ export const payments = pgTable(
     lineIds: jsonb().$type<string[]>().notNull(),
     /** How the buyer paid: PayPal checkout, saved PayPal in one tap, auto-pay, or an invoice. */
     via: text().$type<PaidVia>().notNull().default("checkout"),
+    /** Refunded so far, so refunds never add up to more than was paid. */
+    refundedCents: integer().notNull().default(0),
     payerEmail: text(),
     raw: jsonb(),
     createdAt: createdAt(),

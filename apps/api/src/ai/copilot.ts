@@ -11,6 +11,7 @@ import type { Realtime } from "../realtime.js";
 import { getSessionDTO, setShowcase } from "../services/catalog.js";
 import type { Notifier } from "../services/notify.js";
 import { listOrderDTOs } from "../services/orders.js";
+import { refundQuote } from "../services/refunds.js";
 import { sendPayReminder } from "../services/reminders.js";
 import { listWaiting } from "../services/waitlist.js";
 import { MODEL } from "./interpret.js";
@@ -176,10 +177,11 @@ export function createCopilot(deps: {
   const last = tools.at(-1);
   if (last) last.cache_control = { type: "ephemeral" }; // tools + instructions are cached
 
+  const CARD_TTL_MS = 30 * 60_000;
   const proposals = new Map<string, Proposal>();
   const propose = (sessionId: string, title: string, run: () => Promise<string>) => {
     for (const [id, p] of proposals)
-      if (Date.now() - p.createdAt > 30 * 60_000) proposals.delete(id);
+      if (Date.now() - p.createdAt > CARD_TTL_MS) proposals.delete(id);
     const id = randomUUID();
     proposals.set(id, { id, sessionId, title, run, createdAt: Date.now() });
     return id;
@@ -332,9 +334,12 @@ export function createCopilot(deps: {
       if (!hit) return "No such line tonight.";
       if (hit.l.status !== "paid") return `That line is ${hit.l.status}, nothing to refund.`;
       const payments = deps.payments;
+      // The amount the refund will really be: its share of what was paid.
+      const quote = await refundQuote(db, lineId);
+      if (!quote) return "That line can't be refunded.";
       const id = propose(
         sessionId,
-        `Refund ${hit.l.price} to ${hit.o.buyer} for ${hit.l.product}${hit.l.option ? `, ${hit.l.option}` : ""} with PayPal`,
+        `Refund ${formatMoney(quote.amountCents, quote.currency)} to ${hit.o.buyer} for ${hit.l.product}${hit.l.option ? `, ${hit.l.option}` : ""} with PayPal`,
         async () => {
           await payments.refundLine(lineId);
           return "Refunded with PayPal.";
@@ -470,7 +475,10 @@ export function createCopilot(deps: {
 
   async function apply(id: string, sessionId: string) {
     const p = proposals.get(id);
-    if (!p || p.sessionId !== sessionId) throw new Error("That card has expired; ask again.");
+    if (!p || p.sessionId !== sessionId || Date.now() - p.createdAt > CARD_TTL_MS) {
+      proposals.delete(id);
+      throw new Error("That card has expired; ask again.");
+    }
     proposals.delete(id);
     return p.run();
   }

@@ -117,6 +117,7 @@ export async function offerFreedStock(
       variantId,
       qty: next.qty,
       holdMinutes: session.holdMinutes,
+      fromWaitlist: true,
       ...(next.sourceMessageId ? { sourceMessageId: next.sourceMessageId } : {}),
     });
     await tx.update(waitlist).set({ status: "filled" }).where(eq(waitlist.id, next.id));
