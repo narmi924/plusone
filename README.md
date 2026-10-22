@@ -10,9 +10,9 @@ PlusOne sits in the seller's own live page. It follows what is on screen and wha
 
 ## How it's different
 
-Comment-selling tools are common: CommentSold and SoldLive in the US, SHOPLINE in Hong Kong and Taiwan, EasyStore and BigSeller in Southeast Asia. They turn comments into orders, hold carts, run waitlists and send invoices, and they all ask buyers to type a code: `A1+1`, `CF A01`, `sold 12`. The nearest anyone comes to reading free text is SHOPLINE labelling comments as purchase, question, positive or negative (it doesn't create orders) and SoldLive confirming the variant by text message after the comment.
+Comment-selling tools are common: CommentSold and SoldLive in the US, SHOPLINE in Hong Kong and Taiwan, EasyStore and BigSeller in Southeast Asia. They turn comments into orders, hold carts, run waitlists and send invoices, and they work from a fixed format: a code such as `A1+1`, `CF A01` or `sold 12`, or at the simplest a bare "+1" for the one item in a flash sale (EasyStore). CommentSold can even buy a waitlisted item automatically once the buyer has pre-authorised it. The nearest anyone comes to reading free text is SHOPLINE labelling comments as purchase, question, positive or negative (it doesn't create orders) and SoldLive confirming the variant by text message after the comment.
 
-**Others make buyers type a code. PlusOne reads the live chat the way a person does, while the live is happening:**
+**Others need buyers to follow a format. PlusOne follows the conversation the way a person does, while the live is happening:**
 
 - "the blue one from before, M" is matched to the product the host showed earlier;
 - "change to L, don't add another" edits the order in place;
@@ -31,7 +31,7 @@ Holds, waitlists, per-person limits, reminders and invoices work the way sellers
 - A name is all it takes to join; PayPal brings the email and address at checkout.
 - One parcel for the whole live, drawn as the shipping label it will become: everything they've said +1 to, with a colour swatch per item. Paid items are marked PAID; what's still held adds up at the bottom with the time left and one button to pay. Once everything is paid the label gets its barcode; once it's shipped, the carrier and tracking number.
 - Private replies from PlusOne in their own language: "Blue M is yours, held for 15 min", "sold out, you're next in line", "freed up, it's yours now".
-- **Saved PayPal and auto-pay.** At the first checkout the buyer can save their PayPal with the shop (PayPal asks them to agree). After that, the next order is one tap with no PayPal window. Or they turn on auto-pay for this live, up to $50, $100 or $200: then saying "+1 the rattan bag" is the whole purchase. The label counts down 15 seconds after the order last changed, so "and the scarf too" joins the same payment; a question from PlusOne pauses the countdown until they answer.
+- **Saved PayPal and auto-pay.** At the first checkout the buyer can save their PayPal with the shop (PayPal asks them to agree). After that, the next order is one tap with no PayPal window. Or they turn on auto-pay for this live, up to $50, $100 or $200: then "+1 the rattan bag" is paid within that limit. The parcel counts down 15 seconds after the order last changed, so "and the scarf too" joins the same payment; while PlusOne is asking them something, auto-pay waits for the answer. Items handed over from the waitlist are never paid automatically.
 
 **The seller** (`/seller`)
 
@@ -60,13 +60,13 @@ Holds, waitlists, per-person limits, reminders and invoices work the way sellers
 | Buyer forgets their saved PayPal | Payment Method Tokens `DELETE /v3/vault/payment-tokens/{id}` |
 | Ask PlusOne | [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit): orders, invoices (list, search, get, QR code, send reminder, cancel), refunds, shipment tracking, disputes |
 
-Every call that moves money carries a `PayPal-Request-Id`, so retries never charge or refund twice.
+Every call that moves money carries a `PayPal-Request-Id`, and a saved-PayPal charge is written down before it is sent, so a retry doesn't charge twice. A PayPal window opened before the buyer changed their order doesn't capture; refunds give back each item's share of what was paid, never more than the payment.
 
 ## Agents that spend, with limits
 
 Two agents in PlusOne move money, and each one has a limit someone chose.
 
-- **The buyer's**: auto-pay. The buyer saves their PayPal, picks a limit for one live, and from then on what they say in chat is what they buy. Every change restarts a short countdown on their label, a question from PlusOne pauses it, the limit is checked again at the moment of payment, and a declined payment turns auto-pay off instead of retrying. Changed their mind? They say so in chat and the seller refunds that item through PayPal.
+- **The buyer's**: auto-pay. The buyer saves their PayPal, picks a limit for one live, and from then on what they order in chat is paid within that limit. Every change restarts a short countdown on their parcel; an open question from PlusOne, or a message still being read, holds it; the limit is checked again at the moment of payment; a declined payment turns auto-pay off instead of retrying. Nothing from the waitlist and no "if no M, forget it" is ever bought on their behalf. Changed their mind? They say so in chat and the seller refunds that item through PayPal, its share of what was paid.
 - **The seller's**: Ask PlusOne. It reads freely: tonight's orders, stock, waitlists, and the shop's PayPal invoices, refunds, tracking and disputes through PayPal's Agent Toolkit. It doesn't send anything by itself. Reminders, invoice reminders, cancellations, refunds and shipping come back as cards the seller approves, one by one or all at once.
 
 ![Auto-pay counting down on the buyer's parcel: the held bag pays itself with the saved PayPal](docs/images/autopay.jpg)
