@@ -23,6 +23,21 @@ Comment-selling tools are common: CommentSold and SoldLive in the US, SHOPLINE i
 
 Holds, waitlists, per-person limits, reminders and invoices work the way sellers already expect from comment-selling tools; PlusOne runs them through PayPal.
 
+## A messy chat, end to end
+
+[`scripts/messy-chat.json`](scripts/messy-chat.json) is a made-up live sale, written the way buyers type: ten buyers, 22 messages in English, Malay, Chinese and Thai, over four products. Buyers point back ("the dress just now, sage S"), change their minds ("actually change my dress to L, don't add another"), cancel, set a condition ("blue M, if no M forget it"), split one order over two messages ("+1", then "white L"), ask questions and chat. Next to it is what a careful seller would write down for each buyer. [`scripts/messy-chat.mjs`](scripts/messy-chat.mjs) plays it through the real chat pipeline on a fresh demo shop and compares each buyer's parcel at the end.
+
+| In the test chat | Result |
+| --- | --- |
+| Messages that place, change or cancel an order | 16 of 22 |
+| ...written as a product code with a quantity (`A1+1`), or a bare "+1" for a one-option item | 1 |
+| Parcels right at the end, three runs in a row | 10 of 10 each time |
+| Questions PlusOne asked | 1 ("+1" with the blouse on screen and no colour or size yet) |
+| Passed to the seller | 1 ("is the dress see-through?", which the shop's policies don't cover) |
+| Average time to PlusOne's reply | about 3 seconds |
+
+This is our own test chat, not data from real sellers. It shows the kind of chat PlusOne is built for; it doesn't measure how often real buyers write this way. Run it with `node --env-file=.env scripts/messy-chat.mjs` against a running API (it resets the demo shop and makes about 25 Claude calls).
+
 ## What you see
 
 **Buyers** (`/live/lumicloset`)
@@ -83,7 +98,7 @@ Claude (Opus 5.5) does the understanding; code does the money.
 - **After the live**: Claude reads the night's orders, stock and chat and leaves the seller a short to-do list.
 - **Ask PlusOne**: Claude with tool use over tonight's orders and the PayPal Agent Toolkit's tools; the host can also ask it out loud ("Hey PlusOne, ...") while selling.
 - **Report assistant**: AG Studio's agents run on Claude through the server, with one extra tool that sends payment reminders.
-- Evals in `apps/api/src/ai/*.eval.ts` (24 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
+- Evals in `apps/api/src/ai/*.eval.ts` (25 chat cases, 8 host-speech cases) cover what the demo and judges will try, including Malay, Chinese, Thai, Indonesian and Singlish.
 
 ![After the live: the recap at the top of the seller's table, and every unpaid order invoiced through PayPal](docs/images/after-live.jpg)
 

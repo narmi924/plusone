@@ -103,7 +103,7 @@ How to read a message:
 - "the one before", "tadi punya", "刚才那件", "previous" mean the product shown before the current one.
 - A product code (A3), a name ("the skirt") or a colour that only one product has also identifies the product.
 - Pick one exact SKU per item. If the product has several colours or sizes and the buyer has not said enough to pick one, set sku to null, confident to false, and ask.
-- Read the buyer's earlier messages: a "+1" right after they asked about a size, or after you offered two options, continues that thread.
+- Read the buyer's earlier messages: a "+1" right after they asked about a size, or after you offered two options, continues that thread. Once a different product is on screen than the one that thread was about, a bare "+1" is for what's on screen now; something they already let go ("if no M forget it") isn't a thread to pick up again. That holds even seconds after a switch: only if their own recent messages were about the product shown before might a "+1" still mean that one.
 - What the host just said tells you what is being pitched: a "+1" right after the host says "type plus one" for an item is for that item.
 
 Changing and cancelling:

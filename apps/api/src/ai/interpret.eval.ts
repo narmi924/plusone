@@ -102,6 +102,18 @@ const cases: Array<[string, InterpretContext, Expect]> = [
     ctx("+1", { recentMessages: [{ secondsAgo: 30, body: "got sage in L?" }] }),
     { intent: "buy", sku: "A1-SAGE-L" },
   ],
+  [
+    "a +1 after the host moved on is for what's on screen",
+    ctx("+1", {
+      products: soldOut("A1-BLUE-M"),
+      onScreen: { code: "A8", name: name("A8"), sinceSeconds: 2 },
+      shownBefore: { code: "A2", name: name("A2") },
+      recentMessages: [
+        { secondsAgo: 70, body: "blue M, if no M forget it, don't want other colour" },
+      ],
+    }),
+    { intent: "buy", sku: "A8", confident: true, asks: false },
+  ],
   // Cancelling
   [
     "cancels just the item named",
