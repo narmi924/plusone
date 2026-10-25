@@ -101,7 +101,7 @@ export function LivePage() {
             {replaying && (
               <span
                 className="over-video text-[13px] text-white/75"
-                title="Nobody is hosting right now, so a recording of the host plays. Ordering and paying are live."
+                title="Nobody is hosting right now, so a recording of the host plays (AI-generated for this demo). Ordering and paying are live."
               >
                 Host replay
               </span>
@@ -215,6 +215,8 @@ export function LivePage() {
       environment={config.paypalEnv === "live" ? "production" : "sandbox"}
       components={["paypal-payments"]}
       pageType="checkout"
+      // The rest of the page is English; keep the PayPal button in step with it.
+      locale="en-US"
     >
       {page}
     </PayPalProvider>

@@ -142,7 +142,7 @@ scripts         Dev tunnel, end-to-end PayPal run, a crowd of demo buyers
 
 **Live demo: <https://plusone-sjgp.onrender.com>** (buyers at `/live/lumicloset`, the seller console at `/seller`).
 
-The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's parcel shows a PayPal sandbox buyer to log in with. No real money moves. Pay once with "Save my PayPal" ticked and the next order is one tap; turn on auto-pay on your parcel and just say "+1". With no host on camera, the live moves on to the next product every 90 seconds, so you can try "the dress just now, blue S"; the chat box always suggests a line for what's on screen. Alone in the shop? In the seller console's Demo menu, **Play a busy minute** sends ten buyers through the same chat pipeline real buyers use: mixed languages, a change of size, a cancellation, a question only the seller can answer, a race for the last one. The shop resets itself after half an hour of quiet.
+The demo seller is Lumi Closet, selling a linen and batik drop. On the hosted demo the seller login shows its password and each buyer's parcel shows a PayPal sandbox buyer to log in with. No real money moves. Pay once with "Save my PayPal" ticked and the next order is one tap; turn on auto-pay on your parcel and just say "+1". With nobody hosting, a recorded host plays: she shows the linen wrap dress, then the rattan bag, and the price label follows what she holds up, so you can say "+1" for the bag and then "the dress just now, blue S". The chat box always suggests a line for what's on screen. Alone in the shop? In the seller console's Demo menu, **Play a busy minute** sends ten buyers through the same chat pipeline real buyers use: mixed languages, a change of size, a cancellation, a question only the seller can answer, a race for the last one. The shop resets itself after half an hour of quiet.
 
 ## Run locally
 
@@ -172,6 +172,7 @@ Tests: `pnpm test` (needs a `plusone_test` database: `docker exec plusone-db psq
 
 - One demo seller and one live at a time; the live page is the seller's own, not TikTok or Facebook.
 - PayPal sandbox only, in USD.
+- The host in the hosted demo's replay is AI-generated video (made with Seedance 2.5), and the buyers in "Play a busy minute" are simulated. Every order, payment, refund and invoice is a real PayPal Sandbox call.
 - The AI asks when it can't tell, but it can still misread; every change it makes shows up on the seller's labels and the buyer's own label, and buyers can correct it in chat.
 
 ## License

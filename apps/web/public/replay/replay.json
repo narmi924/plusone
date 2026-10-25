@@ -1,0 +1,6 @@
+{
+  "clips": [
+    { "src": "/replay/dress.mp4", "product": "A1", "seconds": 30 },
+    { "src": "/replay/bag.mp4", "product": "A8", "seconds": 19.6 }
+  ]
+}
