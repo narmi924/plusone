@@ -34,8 +34,9 @@ export function ReplayVideo({
   const [index, setIndex] = useState(() => clipAt(clips, Date.now() + skewMs).index);
   const clip = clips[index] ?? clips[0];
 
-  // Keep to the schedule: jump when the clip should change or drifts by more than a second,
-  // and start it again if it stopped (it can end before its slot does).
+  // Keep to the schedule, checked often so the clip changes with the price label: jump when
+  // the clip should change or drifts by more than a second, and start it again if it stopped
+  // (it can end before its slot does).
   useEffect(() => {
     const t = setInterval(() => {
       const now = clipAt(clips, Date.now() + skewMs);
@@ -48,7 +49,7 @@ export function ReplayVideo({
       const want = within(el, now.offset);
       if (Math.abs(el.currentTime - want) > 1.2) el.currentTime = want;
       if (el.paused) el.play().catch(() => {});
-    }, 1_000);
+    }, 250);
     return () => clearInterval(t);
   }, [clips, skewMs, index]);
 
