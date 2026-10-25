@@ -8,6 +8,7 @@ import { useLive, useLiveRoom } from "../lib/useLiveRoom";
 import { TrackAudio, TrackVideo, useWatchLive } from "../lib/video";
 import { ChatFeed, ChatInput, tryLines } from "./Chat";
 import { MyOrderBar, OrderPanel } from "./OrderSlip";
+import { ReplayVideo } from "./Replay";
 import { Stage } from "./Stage";
 
 export function LivePage() {
@@ -15,11 +16,19 @@ export function LivePage() {
   const [token, setToken] = useState<string | null>(() => readStored(BUYER_TOKEN_KEY));
   const [buyer, setBuyer] = useState<BuyerDTO | null>(null);
   const [config, setConfig] = useState<PublicConfig | null>(null);
+  // Server clock minus ours, so the replay plays the same moment for everyone.
+  const [skewMs, setSkewMs] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState<{ text: string; n: number } | null>(null);
 
   useEffect(() => {
-    api.config().then(setConfig, () => setConfig(null));
+    api.config().then(
+      (c) => {
+        setConfig(c);
+        if (c.replay) setSkewMs(c.replay.serverNow - Date.now());
+      },
+      () => setConfig(null),
+    );
   }, []);
 
   useEffect(() => {
@@ -44,6 +53,8 @@ export function LivePage() {
   if (!session) return <p className="p-8 text-quiet">Joining the live…</p>;
 
   const product = session.products.find((p) => p.id === session.currentProductId) ?? null;
+  // Nobody hosting on the public demo: the recorded host plays instead.
+  const replaying = Boolean(config?.replay && session.replayOn && !watch.video);
   const paypalReady = Boolean(config?.paypalClientId);
   const addToChat = (text: string) => {
     setSheetOpen(false);
@@ -69,7 +80,15 @@ export function LivePage() {
         deals={session.deals}
         ended={session.status === "ended"}
         video={
-          watch.video && <TrackVideo track={watch.video} className="h-full w-full object-cover" />
+          watch.video ? (
+            <TrackVideo track={watch.video} className="h-full w-full object-cover" />
+          ) : replaying && config?.replay ? (
+            <ReplayVideo
+              clips={config.replay.clips}
+              skewMs={skewMs}
+              className="h-full w-full object-cover"
+            />
+          ) : null
         }
         header={
           <div className="flex items-center gap-3">
@@ -79,6 +98,14 @@ export function LivePage() {
               {session.status === "ended" ? "ENDED" : "LIVE"}
             </span>
             <h1 className="over-video truncate text-[17px] font-bold">{session.seller.name}</h1>
+            {replaying && (
+              <span
+                className="over-video text-[13px] text-white/75"
+                title="Nobody is hosting right now, so a recording of the host plays. Ordering and paying are live."
+              >
+                Host replay
+              </span>
+            )}
             {watch.video && (
               <span className="over-video text-[13px] text-white/75 tabular">
                 {watch.viewers} watching

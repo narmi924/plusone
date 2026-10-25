@@ -1,4 +1,4 @@
-import type { PublicConfig } from "@plusone/shared";
+import type { PublicConfig, ReplayClip } from "@plusone/shared";
 import { and, eq, ne } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -60,6 +60,8 @@ interface Deps {
   crowd: SampleCrowd | null;
   /** Per-visitor limits and the demo's AI budget. */
   guards: Guards;
+  /** Recorded host clips for the public demo, if any. */
+  replay: ReplayClip[] | null;
   webhookId: () => string | null;
 }
 
@@ -103,6 +105,7 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
       paypalClientId: env.PAYPAL_CLIENT_ID ?? "",
       paypalEnv: env.PAYPAL_ENV,
       livekitUrl: env.LIVEKIT_URL || null,
+      replay: env.DEMO_MODE && deps.replay ? { clips: deps.replay, serverNow: Date.now() } : null,
       demo: env.DEMO_MODE
         ? {
             sellerPassword: env.SELLER_PASSWORD,
@@ -122,7 +125,11 @@ export async function registerRoutes(app: FastifyInstance, deps: Deps) {
     const sessionId = await findSessionForHandle(db, req.params.handle);
     const session = sessionId ? await getSessionDTO(db, sessionId) : null;
     if (!session) return reply.code(404).send({ error: "No live here" });
-    return { ...session, hostVideoOn: realtime.isVideoOn(session.id) };
+    return {
+      ...session,
+      hostVideoOn: realtime.isVideoOn(session.id),
+      replayOn: realtime.isReplayOn(session.id),
+    };
   });
 
   app.get<{ Params: { id: string } }>("/api/sessions/:id/messages", async (req) => {

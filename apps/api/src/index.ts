@@ -36,6 +36,7 @@ import { startDemoHost, startDemoKeeper } from "./services/demo.js";
 import { startHoldSweeper } from "./services/holds.js";
 import { createNotifier } from "./services/notify.js";
 import { REMIND_BEFORE_MS } from "./services/reminders.js";
+import { loadReplay } from "./services/replay.js";
 import { createSpeechRelay } from "./speech.js";
 import { studioAiRoute } from "./studioAi.js";
 
@@ -186,8 +187,9 @@ const stopDemoKeeper = env.DEMO_MODE
       },
     })
   : () => undefined;
+const replay = env.DEMO_MODE ? loadReplay() : null;
 const stopDemoHost = env.DEMO_MODE
-  ? startDemoHost({ db, realtime, log: app.log })
+  ? startDemoHost({ db, realtime, log: app.log, replay })
   : () => undefined;
 
 let webhookId: string | null = env.PAYPAL_WEBHOOK_ID || null;
@@ -210,6 +212,7 @@ await registerRoutes(app, {
   jobs,
   crowd,
   guards,
+  replay,
   copilot: env.ANTHROPIC_API_KEY
     ? createCopilot({
         apiKey: env.ANTHROPIC_API_KEY,

@@ -57,6 +57,10 @@ export function createRealtime(
   // Whether the host's camera is on, per session. Viewers only join the video
   // room while it is, so idle visitors don't use up video minutes.
   const videoOn = new Map<string, boolean>();
+  // Replay (public demo): whether the recorded host is playing, and when anyone
+  // last put a product on screen by hand, which pauses it for a while.
+  const replayOn = new Map<string, boolean>();
+  const manualShowcaseAt = new Map<string, number>();
   // A buyer typing faster than anyone could read gets asked to slow down, so a
   // stuck key or a script can't run up the AI bill on the public demo.
   const recentSends = new Map<string, number[]>();
@@ -191,8 +195,26 @@ export function createRealtime(
       videoOn.set(sessionId, on);
       io.to(sessionRoom(sessionId)).emit("video:status", { on });
     },
-    showcase(sessionId: string, productId: string | null, previousProductId: string | null) {
+    showcase(
+      sessionId: string,
+      productId: string | null,
+      previousProductId: string | null,
+      opts: { byReplay?: boolean } = {},
+    ) {
+      if (!opts.byReplay) manualShowcaseAt.set(sessionId, Date.now());
       io.to(sessionRoom(sessionId)).emit("showcase:changed", { productId, previousProductId });
+    },
+    /** When a product was last put on screen by hand (seller, camera, copilot, sample crowd). */
+    manualShowcaseAt(sessionId: string) {
+      return manualShowcaseAt.get(sessionId) ?? 0;
+    },
+    isReplayOn(sessionId: string) {
+      return replayOn.get(sessionId) ?? false;
+    },
+    setReplay(sessionId: string, on: boolean) {
+      if ((replayOn.get(sessionId) ?? false) === on) return;
+      replayOn.set(sessionId, on);
+      io.to(sessionRoom(sessionId)).emit("replay:status", { on });
     },
   };
 }

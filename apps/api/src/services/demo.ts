@@ -1,3 +1,4 @@
+import type { ReplayClip } from "@plusone/shared";
 import { desc, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { Db } from "../db/client.js";
@@ -5,6 +6,7 @@ import { liveSessions } from "../db/schema.js";
 import { seedDemo } from "../db/seed.js";
 import type { Realtime } from "../realtime.js";
 import { getProducts, setShowcase } from "./catalog.js";
+import { clipAt } from "./replay.js";
 
 // Public demo: once a visitor has been and gone, put the shop back the way the
 // next one should find it: a live in progress, full stock, an empty book.
@@ -58,9 +60,12 @@ export function startDemoHost(deps: {
   db: Db;
   realtime: Realtime;
   log: FastifyBaseLogger;
+  /** Recorded host clips: when present the replay drives what's on screen. */
+  replay?: ReplayClip[] | null;
   everyMs?: number;
 }) {
   const { db, realtime, log } = deps;
+  if (deps.replay) return startReplay({ db, realtime, log, clips: deps.replay });
   const tick = async () => {
     const [session] = await db
       .select()
@@ -84,6 +89,54 @@ export function startDemoHost(deps: {
   const timer = setInterval(
     () => void tick().catch((err: unknown) => log.error({ err }, "demo host failed")),
     deps.everyMs ?? 90_000,
+  );
+  return () => clearInterval(timer);
+}
+
+/** How long a product put on screen by hand keeps the replay paused. */
+const MANUAL_PAUSE_MS = 2 * 60_000;
+
+/**
+ * The recorded host plays whenever nobody is hosting: no camera on and no
+ * product put on screen by hand in the last two minutes. Every second, the
+ * product the current clip shows goes on screen if it isn't already.
+ */
+function startReplay(deps: {
+  db: Db;
+  realtime: Realtime;
+  log: FastifyBaseLogger;
+  clips: ReplayClip[];
+}) {
+  const { db, realtime, log, clips } = deps;
+  let codes = new Map<string, string>();
+  let codesAt = 0;
+  const tick = async () => {
+    const [session] = await db
+      .select()
+      .from(liveSessions)
+      .orderBy(desc(liveSessions.createdAt))
+      .limit(1);
+    if (!session) return;
+    const on =
+      session.status === "live" &&
+      !realtime.isVideoOn(session.id) &&
+      Date.now() - realtime.manualShowcaseAt(session.id) > MANUAL_PAUSE_MS;
+    realtime.setReplay(session.id, on);
+    if (!on || realtime.watching(session.id) === 0) return;
+
+    if (Date.now() - codesAt > 60_000) {
+      codes = new Map((await getProducts(db, session.sellerId)).map((p) => [p.code, p.id]));
+      codesAt = Date.now();
+    }
+    const productId = codes.get(clipAt(clips, Date.now()).clip.product);
+    if (!productId || productId === session.currentProductId) return;
+    const result = await db.transaction((tx) => setShowcase(tx, session.id, productId));
+    realtime.showcase(session.id, result.productId, result.previousProductId, { byReplay: true });
+  };
+  log.info({ clips: clips.length }, "replay: the recorded host plays when nobody is hosting");
+  const timer = setInterval(
+    () => void tick().catch((err: unknown) => log.error({ err }, "replay failed")),
+    1_000,
   );
   return () => clearInterval(timer);
 }

@@ -26,10 +26,20 @@ export const INTENTS = [
 export type Intent = (typeof INTENTS)[number];
 
 /** Public, non-secret config the web app fetches from the API at startup. */
+/** One recorded clip of the host for replay, and the product it shows. */
+export interface ReplayClip {
+  src: string;
+  /** Product code on screen while it plays, e.g. "A8". */
+  product: string;
+  seconds: number;
+}
+
 export interface PublicConfig {
   paypalClientId: string;
   paypalEnv: "sandbox" | "live";
   livekitUrl: string | null;
+  /** Public demo: recorded host clips that play when nobody is hosting, and the server's clock. */
+  replay: { clips: ReplayClip[]; serverNow: number } | null;
   /** Public demo: what a judge or visitor needs to try everything. */
   demo: {
     sellerPassword: string;
@@ -75,6 +85,8 @@ export interface SessionDTO {
   previousProductId: string | null;
   /** The host's camera is on right now. */
   hostVideoOn: boolean;
+  /** Nobody is hosting and the recorded host is playing instead (public demo). */
+  replayOn?: boolean;
   /** Deals and limits the host has announced and confirmed, one line each. */
   deals: string[];
   /** Active "buy these together" deals, so a buyer can be offered the missing piece. */
@@ -246,6 +258,8 @@ export interface ServerToClientEvents {
   "order:updated": (order: OrderDTO) => void;
   "stock:changed": (changes: StockChange[]) => void;
   "video:status": (payload: { on: boolean }) => void;
+  /** The recorded host started or stopped playing (public demo). */
+  "replay:status": (payload: { on: boolean }) => void;
   /** The seller's "needs you" list changed; refetch it. */
   "attention:changed": () => void;
   /** Products, prices or deals changed; refetch the session. */

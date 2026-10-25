@@ -32,6 +32,7 @@ interface LiveState {
   applyStock: (changes: StockChange[]) => void;
   setShowcase: (productId: string | null, previousProductId: string | null) => void;
   setHostVideo: (on: boolean) => void;
+  setReplay: (on: boolean) => void;
   setThinking: (messageId: string, done: boolean) => void;
   setConnected: (c: boolean) => void;
   bumpAttention: () => void;
@@ -93,6 +94,7 @@ export const useLive = create<LiveState>((set) => ({
     ),
   setHostVideo: (on) =>
     set((s) => (s.session ? { session: { ...s.session, hostVideoOn: on } } : s)),
+  setReplay: (on) => set((s) => (s.session ? { session: { ...s.session, replayOn: on } } : s)),
   setThinking: (messageId, done) =>
     set((s) => {
       const thinking = new Set(s.thinking);
@@ -193,6 +195,7 @@ export function useLiveRoom(opts: {
         useLive.getState().setShowcase(productId, previousProductId),
       );
       socket.on("video:status", ({ on }) => useLive.getState().setHostVideo(on));
+      socket.on("replay:status", ({ on }) => useLive.getState().setReplay(on));
       socket.on("attention:changed", () => useLive.getState().bumpAttention());
       socket.on("rules:changed", () => useLive.getState().bumpRules());
       socket.on("waitlist:changed", () => useLive.getState().bumpWaitlist());
@@ -205,9 +208,11 @@ export function useLiveRoom(opts: {
         api.live(handle).then(
           (fresh) => {
             const current = useLive.getState().session;
-            useLive
-              .getState()
-              .setSession({ ...fresh, hostVideoOn: current?.hostVideoOn ?? fresh.hostVideoOn });
+            useLive.getState().setSession({
+              ...fresh,
+              hostVideoOn: current?.hostVideoOn ?? fresh.hostVideoOn,
+              replayOn: current?.replayOn ?? fresh.replayOn ?? false,
+            });
           },
           () => undefined,
         );
