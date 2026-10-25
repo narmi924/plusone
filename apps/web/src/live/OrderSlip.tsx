@@ -400,6 +400,9 @@ function PayAction({
       setStatus({ kind: "idle" });
     } catch (err) {
       failed(err);
+      // Their saved PayPal was removed: show the PayPal button again.
+      if (err instanceof ApiError && err.issue === "SAVED_PAYPAL_GONE")
+        api.wallet(order.sessionId, buyerToken).then(onWallet, () => undefined);
     }
   }
 

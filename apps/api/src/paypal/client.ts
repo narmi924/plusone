@@ -84,7 +84,8 @@ export type PayPal = NonNullable<ReturnType<typeof createPayPal>>;
 
 /**
  * Readable summary of a PayPal error. Typed errors carry the parsed payload in
- * `result` (with PayPal's own snake_case field names); a bare ApiError only has `body`.
+ * `result` (with PayPal's own snake_case field names); a bare ApiError, and a typed
+ * one whose body wasn't parsed, only has the raw `body`, so parse that ourselves.
  */
 export function describePayPalError(err: unknown): {
   status: number;
@@ -92,7 +93,7 @@ export function describePayPalError(err: unknown): {
   message: string;
 } {
   if (err instanceof ApiError) {
-    const result = err.result as
+    const result = (err.result ?? parseBody(err.body)) as
       | {
           name?: string;
           message?: string;
@@ -112,4 +113,13 @@ export function describePayPalError(err: unknown): {
     };
   }
   return { status: 500, issue: null, message: err instanceof Error ? err.message : String(err) };
+}
+
+function parseBody(body: unknown): unknown {
+  if (typeof body !== "string") return undefined;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
 }

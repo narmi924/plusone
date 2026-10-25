@@ -124,6 +124,8 @@ The PayPal code was written with the APIMatic Context Plugin for Claude Code (Pa
 - `apps/api/src/paypal/client.ts`: the SDK has no timeout and no retries by default; the client sets both, and POSTs retry only when they carry a request id.
 - `describePayPalError` in the same file: reads the typed `result` versus the raw `body` the way the SDK reports them, keeping PayPal's own field names (`debug_id`).
 - `apps/api/src/paypal/payments.ts`: create, capture, get and refund follow the SDK's calling conventions (one named-parameter object, SDK enums), each with a request id.
+- Saving PayPal (`payments.ts`): reading the SDK's vault model showed `permitMultiplePaymentTokens`, meant for customers who don't log in to the merchant. PlusOne's buyers never do, and on the demo every judge uses the same sandbox PayPal account, so without it they all shared one token and one buyer's "Forget it" broke everyone else's one-tap. Each buyer now gets their own token, and the vault `description` tells the buyer on PayPal's page which shop they're saving for.
+- Errors (`client.ts`): the error-handling guidance showed that the payload can arrive only as the raw `body`; it is parsed now, and a saved PayPal that PayPal no longer accepts is dropped with a plain message instead of PayPal's JSON reaching the buyer.
 
 ## Architecture
 

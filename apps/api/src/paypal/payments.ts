@@ -175,6 +175,12 @@ export function createPayments(deps: {
                         storeInVault: StoreInVaultInstruction.OnSuccess,
                         usageType: PaypalPaymentTokenUsageType.Merchant,
                         customerType: PaypalPaymentTokenCustomerType.Consumer,
+                        // Shown on PayPal's page and in the buyer's PayPal settings.
+                        description: `${seller?.name ?? "PlusOne"}: one-tap payment in live sales`,
+                        // Buyers never log in here, so one PayPal account can belong to several
+                        // of them (every judge uses the same sandbox buyer). Each gets its own
+                        // token; otherwise one "Forget it" deletes everyone's.
+                        permitMultiplePaymentTokens: true,
                       },
                     },
                   }
@@ -282,6 +288,15 @@ export function createPayments(deps: {
       // PayPal answered no: nothing was charged.
       if (info.status >= 400 && info.status < 500)
         await db.update(payments).set({ status: "denied" }).where(eq(payments.id, paymentId));
+      // The saved PayPal is gone at PayPal (deleted, or no longer allowed): drop it here too.
+      if (info.status === 403 || info.issue === "PERMISSION_DENIED") {
+        await clearSaved(buyerId);
+        throw new PaymentError(
+          "Your saved PayPal can't be used here anymore, so we've removed it. Pay with the PayPal button.",
+          409,
+          "SAVED_PAYPAL_GONE",
+        );
+      }
       throw new PaymentError(info.message, info.status === 422 ? 422 : 502, info.issue);
     }
     if (!result.id) throw new PaymentError("PayPal did not return an order id", 502);
@@ -307,6 +322,10 @@ export function createPayments(deps: {
         log.warn({ info: describePayPalError(err) }, "PayPal vault delete failed");
       });
     }
+    await clearSaved(buyerId);
+  }
+
+  async function clearSaved(buyerId: string) {
     await db
       .update(buyers)
       .set({
