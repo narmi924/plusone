@@ -15,6 +15,11 @@ function clipAt(clips: ReplayClip[], nowMs: number) {
   return { index: 0, offset: 0 };
 }
 
+/** A slot can be longer than its clip; the clip loops inside it. */
+function within(el: HTMLVideoElement, offset: number) {
+  return el.duration > 0 ? offset % el.duration : offset;
+}
+
 export function ReplayVideo({
   clips,
   skewMs,
@@ -29,13 +34,20 @@ export function ReplayVideo({
   const [index, setIndex] = useState(() => clipAt(clips, Date.now() + skewMs).index);
   const clip = clips[index] ?? clips[0];
 
-  // Keep to the schedule: jump when the clip should change or drifts by more than a second.
+  // Keep to the schedule: jump when the clip should change or drifts by more than a second,
+  // and start it again if it stopped (it can end before its slot does).
   useEffect(() => {
     const t = setInterval(() => {
       const now = clipAt(clips, Date.now() + skewMs);
       const el = ref.current;
-      if (now.index !== index) setIndex(now.index);
-      else if (el && Math.abs(el.currentTime - now.offset) > 1.2) el.currentTime = now.offset;
+      if (now.index !== index) {
+        setIndex(now.index);
+        return;
+      }
+      if (!el) return;
+      const want = within(el, now.offset);
+      if (Math.abs(el.currentTime - want) > 1.2) el.currentTime = want;
+      if (el.paused) el.play().catch(() => {});
     }, 1_000);
     return () => clearInterval(t);
   }, [clips, skewMs, index]);
@@ -49,9 +61,11 @@ export function ReplayVideo({
       muted
       playsInline
       autoPlay
+      loop
       preload="auto"
       onLoadedMetadata={(e) => {
-        e.currentTarget.currentTime = clipAt(clips, Date.now() + skewMs).offset;
+        const el = e.currentTarget;
+        el.currentTime = within(el, clipAt(clips, Date.now() + skewMs).offset);
       }}
       className={className}
     />

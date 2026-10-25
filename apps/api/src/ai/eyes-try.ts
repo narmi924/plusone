@@ -4,7 +4,7 @@ import type { SessionDTO } from "@plusone/shared";
 import { createHostEyes } from "./hostEyes.js";
 
 const session = (await (
-  await fetch("http://localhost:3000/api/live/lumicloset")
+  await fetch(`${process.env.API_URL ?? "http://localhost:3000"}/api/live/lumicloset`)
 ).json()) as SessionDTO;
 const look = createHostEyes(process.env.ANTHROPIC_API_KEY ?? "");
 for (const file of process.argv.slice(2)) {
