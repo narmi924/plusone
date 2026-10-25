@@ -18,6 +18,17 @@ import type { Payments } from "./payments.js";
 const DUE_IN_MS = 24 * 60 * 60_000;
 const SELLER_TIME_ZONE = "Asia/Singapore";
 
+/** "26 Oct, 8:10 pm" in the seller's time zone, as the buyer's messages say it. */
+export function dueLabel(dueAt: Date) {
+  return dueAt.toLocaleString("en-GB", {
+    timeZone: SELLER_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 const money = (cents: number, currency_code: string) => ({
   currency_code,
   value: (cents / 100).toFixed(2),
@@ -169,13 +180,7 @@ export function createInvoicing(deps: {
       return inserted;
     });
 
-    const due = dueAt.toLocaleString("en-GB", {
-      timeZone: SELLER_TIME_ZONE,
-      day: "numeric",
-      month: "short",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const due = dueLabel(dueAt);
     await notify.privateTo(
       order.sessionId,
       order.buyerId,

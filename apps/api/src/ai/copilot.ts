@@ -5,7 +5,7 @@ import { formatMoney } from "@plusone/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { Db } from "../db/client.js";
-import { invoices, orders, products } from "../db/schema.js";
+import { buyers, invoices, orders, products } from "../db/schema.js";
 import type { CarrierKey, Payments } from "../paypal/payments.js";
 import type { Realtime } from "../realtime.js";
 import { getSessionDTO, setShowcase } from "../services/catalog.js";
@@ -46,6 +46,20 @@ Never invent order numbers, ids or amounts; look them up.
 The PayPal account also holds invoices from earlier lives. When the seller means tonight, go by the invoice ids in tonight_orders.`;
 
 type Emit = (event: string, data: unknown) => void;
+
+/** PayPal's own words from a toolkit error, without the JSON around them. */
+function paypalSays(out: string) {
+  try {
+    const parsed = JSON.parse(out) as { message?: string; error?: string };
+    const text = parsed.message ?? parsed.error ?? out;
+    return text.replace(
+      /^Request is not well-formed, syntactically incorrect, or violates schema\.:\s*/,
+      "",
+    );
+  } catch {
+    return out.slice(0, 200);
+  }
+}
 
 interface Proposal {
   id: string;
@@ -378,23 +392,37 @@ export function createCopilot(deps: {
       const invoiceId = String(input.invoice_id ?? "");
       const [inv] = await db
         .select({
+          orderId: orders.id,
           number: orders.number,
           amount: invoices.amountCents,
           currency: invoices.currency,
+          email: buyers.email,
         })
         .from(invoices)
         .innerJoin(orders, eq(orders.id, invoices.orderId))
+        .innerJoin(buyers, eq(buyers.id, orders.buyerId))
         .where(eq(invoices.paypalInvoiceId, invoiceId));
       const who = inv
         ? `order #${inv.number} (${formatMoney(inv.amount, inv.currency)})`
         : invoiceId;
+      // A buyer who joined with just a name pays from a link; PayPal won't email a
+      // reminder for that invoice, so the reminder goes to their chat instead.
+      if (name === "send_invoice_reminder" && inv && !inv.email) {
+        const title = `Remind ${who} in chat, with the PayPal invoice on their parcel`;
+        const id = propose(sessionId, title, async () => {
+          const r = await sendPayReminder(db, deps.notify, inv.orderId);
+          return r.sent ? "Sent in chat." : `Not sent: ${r.reason}.`;
+        });
+        emit("proposal", { id, title, source: "plusone" });
+        return "Queued as a card for the seller to approve (in chat: this invoice is paid from a link, so PayPal can't email a reminder).";
+      }
       const title =
         name === "send_invoice_reminder"
           ? `Send a PayPal invoice reminder for ${who}`
           : `Cancel the PayPal invoice for ${who}`;
       const id = propose(sessionId, title, async () => {
         const out = await paypalCall(name, input);
-        if (/"ok":false|"error"/.test(out)) throw new Error(out.slice(0, 300));
+        if (/"ok":false|"error"/.test(out)) throw new Error(paypalSays(out));
         return name === "send_invoice_reminder"
           ? "PayPal sent the reminder."
           : "Invoice cancelled.";

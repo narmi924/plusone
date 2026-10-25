@@ -77,7 +77,12 @@ async function gatherFacts(db: Db, sessionId: string) {
       live: session.title,
       taken: money(paid.reduce((n, o) => n + o.totalCents, 0)),
       piecesSold,
-      paidOrders: paid.length,
+      // Who paid for what, so a "+1" in the chat is never mistaken for a missing order.
+      paidOrders: paid.map((o) => ({
+        buyer: o.buyer.name,
+        amount: money(o.totalCents),
+        items: o.lines.filter((l) => l.status === "paid").map(label),
+      })),
       stillOwing: owing.map((o) => ({
         buyer: o.buyer.name,
         amount: money(o.totalCents),

@@ -33,6 +33,8 @@ export function createSampleCrowd(deps: {
   db: Db;
   receive: ChatHandler;
   onShowcase: (sessionId: string, productId: string, previousProductId: string | null) => void;
+  /** True while the recorded host is playing: it already decides what's on screen. */
+  isReplayOn: (sessionId: string) => boolean;
   log: FastifyBaseLogger;
 }) {
   const { db, log } = deps;
@@ -42,12 +44,10 @@ export function createSampleCrowd(deps: {
   async function play(sessionId: string) {
     const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, sessionId));
     if (session?.status !== "live") return;
-    // Start on the dress, like the host would.
-    const [dress] = await db
-      .select({ id: products.id })
-      .from(products)
-      .where(eq(products.code, "A1"))
-      .limit(1);
+    // Start on the dress, like the host would (the recorded host, when it plays, shows it anyway).
+    const [dress] = deps.isReplayOn(sessionId)
+      ? []
+      : await db.select({ id: products.id }).from(products).where(eq(products.code, "A1")).limit(1);
     if (dress) {
       const shown = await db.transaction((tx) => setShowcase(tx, sessionId, dress.id));
       deps.onShowcase(sessionId, shown.productId, shown.previousProductId);

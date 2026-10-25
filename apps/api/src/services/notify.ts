@@ -22,6 +22,7 @@ type Template =
   | "shipped"
   | "invoiced"
   | "invoicedLink"
+  | "invoiceReminder"
   | "autopaid"
   | "autopayStopped";
 
@@ -40,6 +41,8 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
       "The live has ended. Your {item} stays held for you until {due}. We've emailed you a PayPal invoice, or pay from your parcel.",
     invoicedLink:
       "The live has ended. Your {item} stays held for you until {due}. Pay the PayPal invoice from your parcel.",
+    invoiceReminder:
+      "Friendly reminder: your PayPal invoice for {item} is open until {due}. Pay it from your parcel to keep it.",
     autopaid:
       "Paid {amount} with your saved PayPal (auto-pay is on). {left} left of tonight's limit. Changed your mind? Just say so.",
     autopayStopped:
@@ -59,6 +62,8 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
       "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Invois PayPal telah dihantar ke e-mel anda, atau bayar di bungkusan anda.",
     invoicedLink:
       "Live sudah tamat. {item} masih disimpan untuk anda sehingga {due}. Bayar invois PayPal di bungkusan anda.",
+    invoiceReminder:
+      "Peringatan mesra: invois PayPal untuk {item} dibuka sehingga {due}. Bayar di bungkusan anda untuk simpan.",
     autopaid:
       "Dibayar {amount} dengan PayPal tersimpan anda (bayar automatik). Baki had malam ini: {left}. Ubah fikiran? Beritahu saja.",
     autopayStopped:
@@ -74,6 +79,7 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     invoiced:
       "直播结束了。{item} 继续为你保留到 {due}。PayPal 账单已发到你的邮箱，也可以在包裹单上直接付款。",
     invoicedLink: "直播结束了。{item} 继续为你保留到 {due}。在包裹单上打开 PayPal 账单付款即可。",
+    invoiceReminder: "温馨提醒：{item} 的 PayPal 账单在 {due} 前有效，在包裹单上付款就能留住。",
     autopaid: "已用你保存的 PayPal 自动付款 {amount}。今晚额度还剩 {left}。想改主意直接说。",
     autopayStopped: "这次没有自动付款：{reason}。在包裹单上点 Pay 就能留住。",
   },
@@ -87,6 +93,8 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
     invoiced:
       "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} เราส่งใบแจ้งหนี้ PayPal ไปที่อีเมลแล้ว หรือชำระที่พัสดุของคุณได้เลยค่ะ",
     invoicedLink: "ไลฟ์จบแล้ว {item} ยังจองไว้ให้คุณถึง {due} ชำระใบแจ้งหนี้ PayPal ได้ที่พัสดุของคุณค่ะ",
+    invoiceReminder:
+      "แจ้งเตือน: ใบแจ้งหนี้ PayPal สำหรับ {item} ชำระได้ถึง {due} ชำระที่พัสดุของคุณเพื่อเก็บไว้นะคะ",
     autopaid:
       "ชำระ {amount} ด้วย PayPal ที่บันทึกไว้แล้ว (จ่ายอัตโนมัติ) วงเงินคืนนี้เหลือ {left} เปลี่ยนใจบอกได้เลยค่ะ",
     autopayStopped: "จ่ายอัตโนมัติไม่ได้ชำระรายการนี้: {reason} กด Pay ที่พัสดุของคุณเพื่อเก็บไว้นะคะ",
@@ -105,6 +113,8 @@ const TEMPLATES: Record<string, Record<Template, string>> = {
       "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Tagihan PayPal sudah dikirim ke emailmu, atau bayar di paketmu.",
     invoicedLink:
       "Live sudah selesai. {item} tetap disimpan untukmu sampai {due}. Bayar tagihan PayPal dari paketmu.",
+    invoiceReminder:
+      "Pengingat: tagihan PayPal untuk {item} terbuka sampai {due}. Bayar dari paketmu supaya tidak hilang.",
     autopaid:
       "Sudah dibayar {amount} dengan PayPal tersimpanmu (bayar otomatis). Sisa limit malam ini: {left}. Berubah pikiran? Bilang saja.",
     autopayStopped:

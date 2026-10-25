@@ -1,6 +1,7 @@
 import { and, eq, gt } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { buyers, invoices, payments } from "../db/schema.js";
+import { dueLabel } from "../paypal/invoicing.js";
 import { type Notifier, phrase } from "./notify.js";
 import { getOrderDTO } from "./orders.js";
 
@@ -52,6 +53,11 @@ export async function sendPayReminder(
     .select({ name: buyers.name, locale: buyers.locale })
     .from(buyers)
     .where(eq(buyers.id, order.buyer.id));
+  // After the live the order is on a PayPal invoice: point them at that.
+  const [invoice] = await db
+    .select({ dueAt: invoices.dueAt })
+    .from(invoices)
+    .where(and(eq(invoices.orderId, orderId), eq(invoices.status, "sent")));
   const item = order.lines
     .filter((l) => l.status === "held")
     .map((l) =>
@@ -64,7 +70,9 @@ export async function sendPayReminder(
   await notify.privateTo(
     order.sessionId,
     order.buyer.id,
-    phrase(buyer?.locale ?? null, "payReminder", { item, min: String(minutesLeft) }),
+    invoice
+      ? phrase(buyer?.locale ?? null, "invoiceReminder", { item, due: dueLabel(invoice.dueAt) })
+      : phrase(buyer?.locale ?? null, "payReminder", { item, min: String(minutesLeft) }),
   );
   return { sent: true, buyer: buyer?.name ?? null, minutesLeft };
 }

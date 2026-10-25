@@ -153,6 +153,7 @@ const crowd = env.DEMO_MODE
       db,
       receive: pipeline.receive,
       onShowcase: realtime.showcase,
+      isReplayOn: realtime.isReplayOn,
       log: app.log,
     })
   : null;
