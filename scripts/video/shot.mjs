@@ -1,11 +1,12 @@
 // Plays one shot of the demo video in a real browser, the same way every time.
-//   node --env-file=.env scripts/video/shot.mjs <shot> [--prod] [--screens <dir>]
+//   node --env-file=.env scripts/video/shot.mjs <shot> [--prod] [--screens <dir>] [--record <dir>]
 // Shots: crowd, host-and-aisha, pay-and-save, autopay, seller
 //
 // A full-screen window opens and the shop is made ready for the shot (reset,
 // buyers, PayPal saved where the shot needs it). Then it waits: start recording,
 // press Enter, and the shot plays. With --screens it runs headless instead and
-// saves stills for the README into <dir>.
+// saves stills for the README into <dir>. With --record it runs headless and records
+// the shot itself: a track per page, the PayPal window included, and the marks the edit cuts on.
 //
 // Local by default (DEMO_MODE API on :3001, web on :5174). --prod plays against
 // the hosted demo, where the close-out runs on Render Workflows.
@@ -17,19 +18,24 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { pointerScript, recorder } from "./record.mjs";
 
 const require = createRequire(new URL("../../apps/web/package.json", import.meta.url));
 const { io } = require("socket.io-client");
 
 const args = process.argv.slice(2);
-const shot = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--screens");
+const shot = args.find(
+  (a) => !a.startsWith("--") && !["--screens", "--record"].includes(args[args.indexOf(a) - 1]),
+);
 const opt = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const PROD = args.includes("--prod");
 const WEB = opt("--web") ?? (PROD ? "https://plusone-sjgp.onrender.com" : "http://localhost:5174");
 const API = opt("--api") ?? (PROD ? WEB : "http://127.0.0.1:3001");
 const SCREENS = opt("--screens");
-const HEADLESS = Boolean(SCREENS);
+const RECORD = opt("--record");
+const HEADLESS = Boolean(SCREENS || RECORD);
 if (SCREENS) mkdirSync(SCREENS, { recursive: true });
+const rec = RECORD ? recorder(join(RECORD, shot)) : null;
 
 const { PAYPAL_SANDBOX_BUYER_EMAIL: EMAIL, PAYPAL_SANDBOX_BUYER_PASSWORD: PW } = process.env;
 const SELLER_PASSWORD = process.env.SELLER_PASSWORD;
@@ -93,7 +99,13 @@ async function waitForReplay(code, minLeft = 12) {
 
 // ---------------------------------------------------------------- browsers
 
-const viewport = HEADLESS ? { width: 1600, height: 1000 } : null;
+// Recorded shots are a little wider than 16:9: the band under the picture is for the captions.
+const viewport = RECORD
+  ? { width: 1536, height: 792 }
+  : HEADLESS
+    ? { width: 1600, height: 1000 }
+    : null;
+const scale = RECORD ? 2 : HEADLESS ? 1.25 : 1;
 async function openBrowser({ camera } = {}) {
   const extra = camera
     ? [
@@ -105,16 +117,22 @@ async function openBrowser({ camera } = {}) {
   return chromium.launch({
     channel: process.env.BROWSER_CHANNEL ?? "msedge",
     headless: HEADLESS || Boolean(camera),
-    args: [...(HEADLESS || camera ? [] : ["--start-fullscreen"]), ...extra],
+    args: [
+      ...(HEADLESS || camera ? [] : ["--start-fullscreen"]),
+      // Headless screencasts come at CSS size unless the device scale is forced.
+      ...(RECORD && !camera ? [`--force-device-scale-factor=${scale}`] : []),
+      ...extra,
+    ],
   });
 }
 async function newPage(browser, { front = true } = {}) {
   const ctx = await browser.newContext({
     viewport: front ? viewport : { width: 1440, height: 900 },
-    deviceScaleFactor: HEADLESS ? 1.25 : 1,
+    deviceScaleFactor: front ? scale : 1,
     locale: "en-US",
     permissions: ["camera", "microphone"],
   });
+  if (RECORD && front) await ctx.addInitScript(pointerScript);
   const page = await ctx.newPage();
   page.on("dialog", (d) => void d.accept());
   return page;
@@ -128,10 +146,43 @@ async function still(page, name) {
 
 /** Recording starts here: in the window, nothing has moved yet. */
 async function ready() {
+  if (RECORD) return rec.start();
   if (HEADLESS) return;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   await rl.question("\nReady. Start recording, then press Enter to play the shot… ");
   rl.close();
+}
+
+function mark(name) {
+  rec?.mark(name);
+  log(name);
+}
+
+async function done() {
+  log("done");
+  if (rec) log("recorded", JSON.stringify((await rec.finish()).tracks));
+}
+
+const pointer = new WeakMap();
+/** Moves the pointer to `target` the way a hand does, then acts on it (click by default). */
+async function tap(page, target, act = (t) => t.click()) {
+  if (RECORD) {
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
+    if (box) {
+      const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const from = pointer.get(page) ?? { x: to.x - 240, y: to.y + 140 };
+      for (let i = 1; i <= 20; i++) {
+        const k = i / 20;
+        const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+        await page.mouse.move(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e);
+        await wait(16);
+      }
+      pointer.set(page, to);
+      await wait(180);
+    }
+  }
+  await act(target);
 }
 
 // ---------------------------------------------------------------- people
@@ -150,9 +201,9 @@ async function buyerPage(browser, name, { front = true } = {}) {
 /** Types the way a person does, then sends. */
 async function say(page, text) {
   const box = page.getByLabel("Chat message");
-  await box.click();
-  await page.keyboard.type(text, { delay: HEADLESS ? 0 : 70 });
-  await wait(HEADLESS ? 0 : 350);
+  if (!(await box.evaluate((el) => el === document.activeElement))) await tap(page, box);
+  await page.keyboard.type(text, { delay: HEADLESS && !RECORD ? 0 : 70 });
+  await wait(HEADLESS && !RECORD ? 0 : 350);
   await box.press("Enter");
 }
 
@@ -162,14 +213,22 @@ async function payWithPayPal(page, { save }) {
   await page.getByRole("region", { name: "Held for you" }).waitFor({ timeout: 60_000 });
   const box = page.getByLabel("Save my PayPal for one tap next time");
   if (save && !(await box.isChecked())) {
-    await wait(HEADLESS ? 0 : 700);
-    await box.check();
+    await wait(HEADLESS && !RECORD ? 0 : 700);
+    await tap(page, box, (t) => t.check());
+    mark("saved");
   }
-  await wait(HEADLESS ? 800 : 1200);
+  await wait(HEADLESS && !RECORD ? 800 : 1200);
   const [popup] = await Promise.all([
     page.waitForEvent("popup", { timeout: 30_000 }),
-    page.locator("paypal-button").first().click(),
+    tap(page, page.locator("paypal-button").first()),
   ]);
+  // The window PayPal opens is phone-sized; recorded, it's its own track for the edit to lay on top.
+  const shown = Boolean(rec?.live);
+  if (shown) {
+    await popup.setViewportSize({ width: 450, height: 640 });
+    await rec.track("paypal", popup);
+    mark("paypal");
+  }
   await popup.waitForLoadState("domcontentloaded");
   await popup.locator("#email").waitFor({ timeout: 45_000 });
   await popup.locator("#email").fill(EMAIL);
@@ -183,16 +242,18 @@ async function payWithPayPal(page, { save }) {
   }
   await popup.locator("#password").waitFor({ timeout: 45_000 });
   await popup.locator("#password").fill(PW);
-  await popup.locator("#btnLogin").click();
+  await (shown ? tap(popup, popup.locator("#btnLogin")) : popup.locator("#btnLogin").click());
   const pay = popup
     .locator(
       "#payment-submit-btn, button:has-text('Agree'), button:has-text('Complete Purchase'), button:has-text('Pay Now'), [data-testid='submit-button-initial']",
     )
     .first();
   await pay.waitFor({ timeout: 90_000 });
-  await popup.waitForTimeout(HEADLESS ? 600 : 1500);
-  await pay.click();
+  await popup.waitForTimeout(HEADLESS && !shown ? 600 : 1500);
+  if (shown) mark("paypal-pay");
+  await (shown ? tap(popup, pay) : pay.click());
   await parcel(page).getByText("PAID", { exact: true }).first().waitFor({ timeout: 90_000 });
+  if (shown) mark("paid");
   log("paid with PayPal", save ? "(saved)" : "");
 }
 
@@ -265,6 +326,8 @@ const shots = {
     const browser = await openBrowser();
     const buyer = await buyerPage(browser, null);
     const seller = await sellerConsole(browser);
+    await rec?.track("buyer", buyer);
+    await rec?.track("seller", seller);
     await buyer.bringToFront();
     await waitForReplay("A1", 26);
     await ready();
@@ -274,12 +337,14 @@ const shots = {
       body: {},
       seller: sellerToken,
     });
+    mark("crowd");
     await wait(16_000);
     await still(buyer, "crowd-buyer");
     await seller.bringToFront();
+    mark("seller");
     await wait(26_000);
     await still(seller, "crowd-seller");
-    log("done");
+    await done();
     await wait(2000);
     await browser.close();
   },
@@ -294,27 +359,32 @@ const shots = {
     const host = await sellerConsole(backstage, { front: false });
     const browser = await openBrowser();
     const aisha = await buyerPage(browser, "Aisha");
+    await rec?.track("buyer", aisha);
     await ready();
     await host.getByRole("button", { name: "Go live with camera" }).click();
     await host.getByRole("button", { name: "Turn camera off" }).waitFor({ timeout: 60_000 });
     await host.getByLabel("Watch", { exact: true }).click();
-    log("camera on, PlusOne watching");
+    mark("watching");
     const tag = aisha.locator("[role=img][aria-label]").first();
     await aisha.waitForFunction(
       (el) => el?.getAttribute("aria-label")?.startsWith("Woven Rattan Bag"),
       await tag.elementHandle(),
       { timeout: 90_000 },
     );
-    log("the bag is on screen");
+    mark("bag");
     await wait(2500);
+    mark("say-before");
     await say(aisha, "the blue one from before, M");
     await parcel(aisha).getByText("Blue M").waitFor({ timeout: 45_000 });
-    await wait(2500);
+    mark("blue-m");
+    await wait(RECORD ? 3600 : 2500);
+    mark("say-l");
     await say(aisha, "tukar L, jangan tambah");
     await parcel(aisha).getByText("Blue L").waitFor({ timeout: 45_000 });
+    mark("blue-l");
     await wait(3000);
     await still(aisha, "host-and-aisha");
-    log("done");
+    await done();
     await wait(2000);
     await host
       .getByRole("button", { name: "Turn camera off" })
@@ -331,13 +401,15 @@ const shots = {
     const aisha = await buyerPage(browser, "Aisha");
     await say(aisha, "+1 A1 blue L");
     await aisha.getByRole("region", { name: "Held for you" }).waitFor({ timeout: 60_000 });
+    await rec?.track("buyer", aisha);
     await ready();
     await wait(1500);
     await payWithPayPal(aisha, { save: true });
     await aisha.getByRole("region", { name: "Auto-pay" }).waitFor({ timeout: 30_000 });
+    mark("saved-shown");
     await wait(3000);
     await still(aisha, "pay-and-save");
-    log("done");
+    await done();
     await wait(2000);
     await browser.close();
   },
@@ -350,31 +422,37 @@ const shots = {
     await say(aisha, "+1 A1 blue L");
     await payWithPayPal(aisha, { save: true });
     await aisha.getByRole("region", { name: "Auto-pay" }).waitFor({ timeout: 30_000 });
+    await rec?.track("buyer", aisha);
     await waitForReplay("A8", 14);
     await ready();
     await wait(1500);
-    await aisha.getByRole("switch", { name: "Auto-pay my +1s tonight" }).click();
+    await tap(aisha, aisha.getByRole("switch", { name: "Auto-pay my +1s tonight" }));
+    mark("autopay-on");
     await wait(2000);
+    mark("say-bag");
     await say(aisha, "+1 the rattan bag");
     await aisha.getByRole("region", { name: "Auto-pay countdown" }).waitFor({ timeout: 45_000 });
+    mark("countdown");
     await wait(4000);
     await still(aisha, "autopay-countdown");
+    mark("say-scarf");
     await say(aisha, "and the scarf too");
     await aisha.getByRole("region", { name: "Auto-pay waiting" }).waitFor({ timeout: 45_000 });
-    await wait(4000);
+    mark("waiting");
+    await wait(RECORD ? 7000 : 4000);
     await still(aisha, "autopay-waiting");
-    await aisha
-      .getByRole("button", { name: /Floral/ })
-      .first()
-      .click();
+    await tap(aisha, aisha.getByRole("button", { name: /Floral/ }).first());
+    mark("floral");
     await aisha.getByRole("region", { name: "Auto-pay countdown" }).waitFor({ timeout: 45_000 });
+    mark("countdown-again");
     await parcel(aisha).getByText("Silk Square Scarf").waitFor({ timeout: 45_000 });
     await aisha
       .getByRole("region", { name: "Auto-pay countdown" })
       .waitFor({ state: "detached", timeout: 60_000 });
-    await wait(3000);
+    mark("paid");
+    await wait(RECORD ? 4500 : 3000);
     await still(aisha, "autopay-paid");
-    log("done");
+    await done();
     await wait(2000);
     await browser.close();
   },
@@ -402,33 +480,40 @@ const shots = {
     const browser = await openBrowser();
     const seller = await sellerConsole(browser);
     await seller.getByText("Wei Ming").first().waitFor({ timeout: 60_000 });
+    await rec?.track("seller", seller);
     await ready();
-    await wait(3500);
+    await wait(RECORD ? 5500 : 3500);
     await still(seller, "seller-table");
-    await seller.getByRole("button", { name: "End live" }).click();
+    await tap(seller, seller.getByRole("button", { name: "End live" }));
+    mark("end-live");
     await seller
       .getByText(/invoice due/i)
       .first()
       .waitFor({ timeout: 120_000 });
-    await wait(3000);
+    mark("invoiced");
+    await wait(RECORD ? 6000 : 3000);
     await still(seller, "seller-invoiced");
     const ask = seller.getByRole("textbox", { name: "Ask PlusOne" });
-    await ask.click();
+    await tap(seller, ask);
+    mark("ask");
     await seller.keyboard.type("Send a PayPal reminder to everyone with an open invoice", {
-      delay: HEADLESS ? 0 : 45,
+      delay: HEADLESS && !RECORD ? 0 : 45,
     });
     await ask.press("Enter");
     const all = seller.getByRole("button", { name: /Approve all/ });
     await all.waitFor({ timeout: 120_000 });
-    await wait(2500);
+    mark("cards");
+    await wait(RECORD ? 5500 : 2500);
     await still(seller, "seller-approve");
-    await all.click();
+    await tap(seller, all);
+    mark("approved");
     await wait(6000);
     await seller.getByRole("region", { name: "After the live" }).waitFor({ timeout: 120_000 });
     await seller.getByRole("region", { name: "After the live" }).scrollIntoViewIfNeeded();
-    await wait(5000);
+    mark("recap");
+    await wait(RECORD ? 7000 : 5000);
     await still(seller, "seller-recap");
-    log("done");
+    await done();
     await wait(2000);
     close();
     await browser.close();
