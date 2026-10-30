@@ -148,30 +148,43 @@ export function createCopilot(deps: {
 }) {
   const { db, log } = deps;
   const client = new Anthropic({ apiKey: deps.apiKey, timeout: 60_000, maxRetries: 2 });
-  const toolkit = deps.paypal
-    ? new PayPalAgentToolkit({
-        clientId: deps.paypal.clientId,
-        clientSecret: deps.paypal.clientSecret,
-        configuration: {
-          actions: {
-            invoices: {
-              list: true,
-              get: true,
-              search: true,
-              generateQRC: true,
-              sendReminder: true,
-              cancel: true,
-            },
-            orders: { get: true },
-            payments: { getRefunds: true },
-            shipment: { get: true },
-            disputes: { list: true, get: true },
-            transactions: { list: true },
+  // The toolkit keeps the first PayPal access token it gets, and PayPal's run out after about
+  // nine hours: a server up longer than that only hears "Access Token not found in cache".
+  // So the toolkit is made again before then, and once more when PayPal says the token is gone.
+  const TOKEN_LIFE_MS = 8 * 3600_000;
+  // An old token: "Access Token not found in cache"; a bad one: "...not found in the system".
+  const TOKEN_GONE =
+    /"status":\s*401|Access Token not found|token passed in was not found|invalid_token/i;
+  const makeToolkit = (paypal: NonNullable<typeof deps.paypal>) =>
+    new PayPalAgentToolkit({
+      clientId: paypal.clientId,
+      clientSecret: paypal.clientSecret,
+      configuration: {
+        actions: {
+          invoices: {
+            list: true,
+            get: true,
+            search: true,
+            generateQRC: true,
+            sendReminder: true,
+            cancel: true,
           },
-          context: { sandbox: deps.paypal.sandbox },
+          orders: { get: true },
+          payments: { getRefunds: true },
+          shipment: { get: true },
+          disputes: { list: true, get: true },
+          transactions: { list: true },
         },
-      })
-    : null;
+        context: { sandbox: paypal.sandbox },
+      },
+    });
+  let toolkit = deps.paypal ? makeToolkit(deps.paypal) : null;
+  let toolkitAt = Date.now();
+  const freshToolkit = () => {
+    if (!deps.paypal) return;
+    toolkit = makeToolkit(deps.paypal);
+    toolkitAt = Date.now();
+  };
   const paypalTools: Anthropic.Tool[] = (toolkit?.getTools() ?? [])
     .filter((t) =>
       [...PAYPAL_READ, ...PAYPAL_PROPOSE].includes(t.function.name as (typeof PAYPAL_READ)[number]),
@@ -203,12 +216,21 @@ export function createCopilot(deps: {
 
   async function paypalCall(name: string, input: unknown) {
     if (!toolkit) throw new Error("PayPal is not configured");
-    const r = await toolkit.handleToolCall({
-      id: randomUUID(),
-      type: "function",
-      function: { name, arguments: JSON.stringify(input ?? {}) },
-    });
-    return String(r.content);
+    if (Date.now() - toolkitAt > TOKEN_LIFE_MS) freshToolkit();
+    const call = async () => {
+      if (!toolkit) throw new Error("PayPal is not configured");
+      const r = await toolkit.handleToolCall({
+        id: randomUUID(),
+        type: "function",
+        function: { name, arguments: JSON.stringify(input ?? {}) },
+      });
+      return String(r.content);
+    };
+    const out = await call();
+    if (!TOKEN_GONE.test(out)) return out;
+    log.warn({ tool: name }, "PayPal token ran out; getting a new one");
+    freshToolkit();
+    return call();
   }
 
   async function tonightOrders(sessionId: string) {
