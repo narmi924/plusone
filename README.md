@@ -7,7 +7,7 @@
 
 **Live-stream selling where buyers talk like people, and every order still comes out right and paid with PayPal.**
 
-**[Live demo](https://plusone-sjgp.onrender.com/live/lumicloset)** · [Try it in a minute](#try-it-in-a-minute) · [How it works](#how-it-works) · Built for the PayPal AI Hackathon
+**[Watch the video (2:52)](https://youtu.be/uMYv5OYjl1Y)** · **[Live demo](https://plusone-sjgp.onrender.com/live/lumicloset)** · [Try it in a minute](#try-it-in-a-minute) · [How it works](#how-it-works) · Built for the PayPal AI Hackathon
 
 ![The buyer's live room: the host holds up the rattan bag and the price label follows by itself. Aisha typed "the blue one from before, M", then "tukar L, jangan tambah" (Malay: change to L, don't add another), and her parcel holds one Linen Wrap Dress in Blue L](docs/images/buyer-live.jpg)
 
@@ -172,7 +172,7 @@ PayPal only delivers webhooks over public HTTPS. With [cloudflared](https://deve
 
 - `node --env-file=.env scripts/demo-crowd.mjs <scene>` plays a few buyers chatting (`switch`, `last-one`, `deal`, `languages`, `close-out`; add `--reset` for a fresh shop).
 - `node --env-file=.env scripts/messy-chat.mjs` runs the messy-chat test against a running API (it resets the shop and makes about 25 Claude calls).
-- `node --env-file=.env scripts/video/shot.mjs <shot>` plays one shot of the demo video in a real browser (`crowd`, `host-and-aisha`, `pay-and-save`, `autopay`, `seller`).
+- `node --env-file=.env scripts/video/shot.mjs <shot>` plays one shot of the demo video in a real browser (`crowd`, `host-and-aisha`, `pay-and-save`, `autopay`, `seller`, `try`); with `--record <dir>` it records the shot itself, headless, a track per page plus the marks the edit cuts on.
 - `pnpm e2e:pay` clicks through a real sandbox payment and refund.
 
 Tests: `pnpm test` (needs a `plusone_test` database: `docker exec plusone-db psql -U plusone -c "CREATE DATABASE plusone_test"`). AI evals: `pnpm --filter @plusone/api eval`.
@@ -185,7 +185,7 @@ Tests: `pnpm test` (needs a `plusone_test` database: `docker exec plusone-db psq
 
 - One demo seller and one live at a time; the live page is the seller's own, not TikTok or Facebook.
 - PayPal sandbox only, in USD.
-- The host in the hosted demo's replay is AI-generated video (made with Seedance 2.5), and the buyers in "Play a busy minute" are simulated. Every order, payment, refund and invoice is a real PayPal Sandbox call.
+- The host in the hosted demo's replay is AI-generated video (made with Seedance 2.5), and the buyers in "Play a busy minute" are simulated. The demo video's narration is a synthetic voice. Every order, payment, refund and invoice is a real PayPal Sandbox call.
 - The AI asks when it can't tell, but it can still misread; every change it makes shows up on the seller's manifests and the buyer's own parcel, and buyers can correct it in chat.
 
 ## License

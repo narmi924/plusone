@@ -1,6 +1,6 @@
 // Plays one shot of the demo video in a real browser, the same way every time.
 //   node --env-file=.env scripts/video/shot.mjs <shot> [--prod] [--screens <dir>] [--record <dir>]
-// Shots: crowd, host-and-aisha, pay-and-save, autopay, seller
+// Shots: crowd, host-and-aisha, pay-and-save, autopay, seller, try
 //
 // A full-screen window opens and the shop is made ready for the shot (reset,
 // buyers, PayPal saved where the shot needs it). Then it waits: start recording,
@@ -382,7 +382,7 @@ const shots = {
     await say(aisha, "tukar L, jangan tambah");
     await parcel(aisha).getByText("Blue L").waitFor({ timeout: 45_000 });
     mark("blue-l");
-    await wait(3000);
+    await wait(RECORD ? 5000 : 3000);
     await still(aisha, "host-and-aisha");
     await done();
     await wait(2000);
@@ -439,7 +439,7 @@ const shots = {
     await say(aisha, "and the scarf too");
     await aisha.getByRole("region", { name: "Auto-pay waiting" }).waitFor({ timeout: 45_000 });
     mark("waiting");
-    await wait(RECORD ? 7000 : 4000);
+    await wait(RECORD ? 9000 : 4000);
     await still(aisha, "autopay-waiting");
     await tap(aisha, aisha.getByRole("button", { name: /Floral/ }).first());
     mark("floral");
@@ -454,6 +454,48 @@ const shots = {
     await still(aisha, "autopay-paid");
     await done();
     await wait(2000);
+    await browser.close();
+  },
+
+  // S7: how to try it: the live page, a name, "+1", the Sandbox login under the PayPal button,
+  // the seller's password on the login page, the Demo menu.
+  async try() {
+    await resetShop();
+    const browser = await openBrowser();
+    const buyer = await buyerPage(browser, null);
+    await rec?.track("buyer", buyer);
+    await waitForReplay("A8", 16);
+    await ready();
+    await wait(1500);
+    await tap(buyer, buyer.getByLabel("Your name"));
+    await buyer.keyboard.type("Sam", { delay: HEADLESS && !RECORD ? 0 : 110 });
+    await wait(300);
+    await tap(buyer, buyer.getByRole("button", { name: "Join" }));
+    await buyer.getByLabel("Chat message").waitFor();
+    mark("joined");
+    await wait(500);
+    await say(buyer, "+1");
+    await buyer.getByRole("region", { name: "Held for you" }).waitFor({ timeout: 60_000 });
+    mark("held");
+    await wait(4000);
+    await still(buyer, "try-buyer");
+    const seller = await newPage(browser);
+    await seller.goto(`${WEB}/seller`);
+    await rec?.track("seller", seller);
+    mark("login");
+    await wait(1500);
+    await tap(seller, seller.getByRole("button", { name: SELLER_PASSWORD }));
+    await wait(500);
+    await tap(seller, seller.getByRole("button", { name: "Open console" }));
+    await seller.getByRole("main", { name: "Tonight's order book" }).waitFor();
+    mark("console");
+    await wait(1200);
+    await tap(seller, seller.locator("summary", { hasText: "Demo" }));
+    mark("demo-menu");
+    await wait(3000);
+    await still(seller, "try-seller");
+    await done();
+    await wait(1000);
     await browser.close();
   },
 
