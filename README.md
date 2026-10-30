@@ -1,13 +1,13 @@
-<p>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/plusone-logo-dark.svg">
-    <img src="docs/images/plusone-logo.svg" alt="PlusOne" height="64">
-  </picture>
+<p align="center">
+  <a href="https://youtu.be/uMYv5OYjl1Y"><img src="docs/images/readme-header.png" width="830" alt="PlusOne. Buyers just talk. PlusOne keeps every order right, and collects with PayPal."></a>
 </p>
 
-**Live-stream selling where buyers talk like people, and every order still comes out right and paid with PayPal.**
-
-**[Watch the video (2:52)](https://youtu.be/uMYv5OYjl1Y)** · **[Live demo](https://plusone-sjgp.onrender.com/live/lumicloset)** · [Try it in a minute](#try-it-in-a-minute) · [How it works](#how-it-works) · Built for the PayPal AI Hackathon
+<p align="center">
+  <a href="https://youtu.be/uMYv5OYjl1Y"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-video-dark.png"><img src="docs/images/readme-video.png" height="52" alt="Watch the video"></picture></a>
+  <a href="https://plusone-sjgp.onrender.com/live/lumicloset"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-demo-dark.png"><img src="docs/images/readme-demo.png" height="52" alt="Try the live demo"></picture></a>
+  <a href="#try-it-in-a-minute"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-try-dark.png"><img src="docs/images/readme-try.png" height="52" alt="Try it in a minute"></picture></a>
+  <a href="#how-it-works"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-how-dark.png"><img src="docs/images/readme-how.png" height="52" alt="How it works"></picture></a>
+</p>
 
 ![The buyer's live room: the host holds up the rattan bag and the price label follows by itself. Aisha typed "the blue one from before, M", then "tukar L, jangan tambah" (Malay: change to L, don't add another), and her parcel holds one Linen Wrap Dress in Blue L](docs/images/buyer-live.jpg)
 
@@ -52,7 +52,7 @@ Holds, waitlists, per-person limits, reminders and invoices work the way sellers
 | Passed to the seller | 1 ("is the dress see-through?", which the shop's policies don't cover) |
 | Average time to PlusOne's reply | about 3 seconds |
 
-This is our own test chat, not data from real sellers: it shows the kind of chat PlusOne is built for, not how often real buyers write this way.
+This is my own test chat, not data from real sellers: it shows the kind of chat PlusOne is built for, not how often real buyers write this way.
 
 ## What you see
 
