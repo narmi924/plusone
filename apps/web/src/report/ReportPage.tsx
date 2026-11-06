@@ -22,6 +22,9 @@ const MODULES: AgStudioModule[] = [AgStudioAiModule];
 const PANELS = { edit: { right: ["ai" as const] }, view: { right: ["filters" as const] } };
 const STYLE = { height: "100%", width: "100%" };
 const LICENSE = import.meta.env.VITE_AG_STUDIO_LICENSE as string | undefined;
+// Every number on this report is a sum, so the headers don't need to say so.
+// biome-ignore lint/suspicious/noTemplateCurlyInString: Studio fills in ${name} itself.
+const LOCALE = { aggregationSumFieldName: "${name}" };
 
 export default function ReportPage() {
   const token = readStored(SELLER_TOKEN_KEY);
@@ -90,6 +93,7 @@ function Report({ token }: { token: string }) {
               widgets={reportWidgets}
               panels={PANELS}
               ai={reportAi}
+              localeText={LOCALE}
               mode="edit"
             />
           </AgStudioProvider>
